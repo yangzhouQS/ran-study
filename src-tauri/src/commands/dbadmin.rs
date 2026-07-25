@@ -50,11 +50,13 @@ pub fn backup_mysql(
     state: State<'_, Arc<AppState>>,
     id: i64,
     db: String,
-    dest: String,
-) -> RanResult<()> {
+    dest: Option<String>,
+) -> RanResult<String> {
     let spec = load_mysql(&state, id)?;
     let pw = state.repo.get_root_pw(id)?;
-    dbadmin::backup(&spec, &pw, &db, std::path::Path::new(&dest))
+    let dest_path = dest.as_deref().map(std::path::Path::new);
+    let written = dbadmin::backup(&spec, &pw, &db, dest_path)?;
+    Ok(written.to_string_lossy().to_string())
 }
 
 #[tauri::command]

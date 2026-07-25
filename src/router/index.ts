@@ -9,6 +9,7 @@ const ProcessService = () => import('@/views/process-service/process-service');
 const Monitor = () => import('@/views/monitor/monitor');
 const Schedule = () => import('@/views/schedule/schedule');
 const TerminalView = () => import('@/views/terminal/terminal');
+const Database = () => import('@/views/database/database');
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -16,6 +17,7 @@ export const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', name: 'dashboard', component: Dashboard },
     { path: '/software', name: 'software', component: Software },
+    { path: '/database', name: 'database', component: Database },
     { path: '/node-version', name: 'nodeVersion', component: NodeVersion },
     { path: '/pm2-app', name: 'pm2App', component: Pm2App },
     { path: '/process-service', name: 'processService', component: ProcessService },

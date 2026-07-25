@@ -101,7 +101,19 @@ pub fn change_root_password(spec: &SoftwareSpec, old_pw: &str, new_pw: &str) -> 
     Ok(())
 }
 
-pub fn backup(spec: &SoftwareSpec, pw: &str, db: &str, dest: &Path) -> RanResult<()> {
+pub fn backup(
+    spec: &SoftwareSpec,
+    pw: &str,
+    db: &str,
+    dest: Option<&Path>,
+) -> RanResult<PathBuf> {
+    let dest = match dest {
+        Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
+        _ => {
+            let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+            spec.data_path.join(format!("{db}-{ts}.sql"))
+        }
+    };
     let out = base(&mysqldump_exe(spec), spec, pw)
         .args(["--databases", db])
         .output()?;
@@ -109,8 +121,8 @@ pub fn backup(spec: &SoftwareSpec, pw: &str, db: &str, dest: &Path) -> RanResult
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(dest, dump)?;
-    Ok(())
+    std::fs::write(&dest, dump)?;
+    Ok(dest)
 }
 
 pub fn import(spec: &SoftwareSpec, pw: &str, db: &str, src: &Path) -> RanResult<()> {
