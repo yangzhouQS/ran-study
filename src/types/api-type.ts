@@ -75,3 +75,46 @@ export interface Pm2App {
   autostart: boolean;
   status: string;
 }
+
+export interface ProcInfo {
+  pid: number;
+  name: string;
+  cpu: number;
+  memory: number;
+  user: string;
+  command: string;
+}
+
+export interface SvcInfo {
+  name: string;
+  state: string;
+  display: string;
+}
+
+export interface DiskInfo {
+  name: string;
+  total: number;
+  available: number;
+}
+
+export interface SystemStats {
+  cpu: number;
+  memTotal: number;
+  memUsed: number;
+  disks: DiskInfo[];
+  netRx: number;
+  netTx: number;
+}
+
+export interface ScheduledTask {
+  id: number;
+  name: string;
+  command: string;
+  trigger: string;
+  enabled: boolean;
+}
+
+export interface TerminalOutput {
+  sessionId: string;
+  data: string;
+}

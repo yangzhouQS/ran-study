@@ -20,6 +20,10 @@ export default defineComponent({
             <ElMenuItem index="/software">软件管理</ElMenuItem>
             <ElMenuItem index="/node-version">Node 版本</ElMenuItem>
             <ElMenuItem index="/pm2-app">PM2 应用</ElMenuItem>
+            <ElMenuItem index="/process-service">进程与服务</ElMenuItem>
+            <ElMenuItem index="/monitor">监控</ElMenuItem>
+            <ElMenuItem index="/schedule">计划任务</ElMenuItem>
+            <ElMenuItem index="/terminal">终端</ElMenuItem>
             <ElMenuItem index="/task-queue">任务队列</ElMenuItem>
           </ElMenu>
         </ElAside>
