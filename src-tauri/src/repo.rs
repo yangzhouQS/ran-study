@@ -39,6 +39,8 @@ impl Repo {
             "CREATE TABLE IF NOT EXISTS scheduled_tasks(
                 id INTEGER PRIMARY KEY, name TEXT, command TEXT,
                 trigger TEXT, enabled INTEGER, log_path TEXT)",
+            "CREATE TABLE IF NOT EXISTS mysql_secrets(
+                software_id INTEGER PRIMARY KEY, root_password TEXT)",
         ] {
             conn.execute(sql, [])?;
         }
@@ -264,6 +266,27 @@ impl Repo {
         self.conn.lock().unwrap().execute(
             "DELETE FROM scheduled_tasks WHERE id=?1",
             rusqlite::params![id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_root_pw(&self, software_id: i64) -> RanResult<String> {
+        let conn = self.conn.lock().unwrap();
+        let pw: Option<String> = conn
+            .query_row(
+                "SELECT root_password FROM mysql_secrets WHERE software_id=?1",
+                rusqlite::params![software_id],
+                |r| r.get(0),
+            )
+            .ok();
+        Ok(pw.unwrap_or_default())
+    }
+
+    pub fn set_root_pw(&self, software_id: i64, pw: &str) -> RanResult<()> {
+        self.conn.lock().unwrap().execute(
+            "INSERT INTO mysql_secrets(software_id, root_password) VALUES (?1,?2)
+             ON CONFLICT(software_id) DO UPDATE SET root_password=excluded.root_password",
+            rusqlite::params![software_id, pw],
         )?;
         Ok(())
     }

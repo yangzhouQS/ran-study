@@ -1,5 +1,6 @@
 mod commands;
 mod boot;
+mod dbadmin;
 mod download;
 mod elevation;
 mod error;
@@ -95,6 +96,12 @@ pub fn run() {
             commands::terminal::open_terminal,
             commands::terminal::write_terminal,
             commands::terminal::close_terminal,
+            commands::dbadmin::list_mysql_databases,
+            commands::dbadmin::create_mysql_database,
+            commands::dbadmin::change_root_password,
+            commands::dbadmin::backup_mysql,
+            commands::dbadmin::import_mysql,
+            commands::dbadmin::run_mysql_query,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

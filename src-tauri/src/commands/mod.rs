@@ -7,6 +7,7 @@ pub mod sysproc;
 pub mod monitor;
 pub mod schedule;
 pub mod terminal;
+pub mod dbadmin;
 
 use crate::provider::registry::ProviderRegistry;
 use crate::repo::Repo;
