@@ -1,9 +1,14 @@
 import { defineConfig } from '@rsbuild/core';
+import { pluginBabel } from '@rsbuild/plugin-babel';
 import { pluginVue } from '@rsbuild/plugin-vue';
 import { pluginVueJsx } from '@rsbuild/plugin-vue-jsx';
 
 export default defineConfig({
-  plugins: [pluginVue(), pluginVueJsx()],
+  plugins: [
+    pluginBabel({ include: /\.(?:jsx|tsx)$/ }),
+    pluginVue(),
+    pluginVueJsx(),
+  ],
   source: {
     entry: { index: './src/main.ts' },
     alias: { '@': './src' },
