@@ -3,6 +3,10 @@ pub mod pm2;
 pub mod system;
 pub mod software;
 pub mod task;
+pub mod sysproc;
+pub mod monitor;
+pub mod schedule;
+pub mod terminal;
 
 use crate::provider::registry::ProviderRegistry;
 use crate::repo::Repo;
@@ -17,6 +21,7 @@ pub struct AppState {
     pub repo: Repo,
     pub providers: Mutex<ProviderRegistry>,
     pub tasks: TaskQueue,
+    pub terminals: crate::terminal::SessionMap,
 }
 
 impl AppState {

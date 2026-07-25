@@ -39,6 +39,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 runas = "1"
 async-trait = "0.1"
 tempfile = "3"
+sysinfo = "0.32"
+portable-pty = "0.8"
 
 [dev-dependencies]
 

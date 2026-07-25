@@ -3,13 +3,17 @@ mod boot;
 mod download;
 mod elevation;
 mod error;
+mod monitor;
 mod nvm;
 mod paths;
 mod pm2;
 mod provider;
 mod repo;
+mod schedule;
 mod settings;
+mod sysproc;
 mod task;
+mod terminal;
 
 use commands::system::{get_settings, get_system_info, init_root, set_root_dir};
 use commands::task::{create_demo_task, list_tasks};
@@ -43,6 +47,7 @@ pub fn run() {
         repo,
         providers: Mutex::new(providers),
         tasks: task::TaskQueue::new(),
+        terminals: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
 
     tauri::Builder::default()
@@ -77,6 +82,19 @@ pub fn run() {
             commands::pm2::delete_pm2_app_cmd,
             commands::pm2::pm2_boot_enabled,
             commands::pm2::pm2_boot_set,
+            commands::sysproc::list_processes,
+            commands::sysproc::kill_process,
+            commands::sysproc::list_services,
+            commands::sysproc::control_service,
+            commands::monitor::get_system_stats,
+            commands::schedule::list_scheduled,
+            commands::schedule::create_scheduled,
+            commands::schedule::run_scheduled,
+            commands::schedule::toggle_scheduled,
+            commands::schedule::delete_scheduled,
+            commands::terminal::open_terminal,
+            commands::terminal::write_terminal,
+            commands::terminal::close_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

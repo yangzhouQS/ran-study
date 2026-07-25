@@ -217,6 +217,58 @@ fn default_port(prov: &str) -> u16 {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduledTaskRow {
+    #[serde(default)]
+    pub id: i64,
+    pub name: String,
+    pub command: String,
+    pub trigger: String,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+impl Repo {
+    pub fn insert_scheduled(&self, t: &ScheduledTaskRow) -> RanResult<i64> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "INSERT INTO scheduled_tasks(name,command,trigger,enabled,log_path)
+             VALUES (?1,?2,?3,?4,'')",
+            rusqlite::params![t.name, t.command, t.trigger, if t.enabled { 1 } else { 0 }],
+        )?;
+        Ok(c.last_insert_rowid())
+    }
+
+    pub fn list_scheduled(&self) -> RanResult<Vec<ScheduledTaskRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT id,name,command,trigger,enabled FROM scheduled_tasks")?;
+        let rows = stmt.query_map([], |r| {
+            Ok(ScheduledTaskRow {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                command: r.get(2)?,
+                trigger: r.get(3)?,
+                enabled: r.get::<_, i64>(4)? != 0,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn delete_scheduled(&self, id: i64) -> RanResult<()> {
+        self.conn.lock().unwrap().execute(
+            "DELETE FROM scheduled_tasks WHERE id=?1",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
