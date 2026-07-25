@@ -18,6 +18,9 @@ impl ProviderRegistry {
     pub fn list(&self) -> Vec<&Arc<dyn SoftwareProvider>> {
         self.providers.values().collect()
     }
+    pub fn get(&self, id: &str) -> Option<Arc<dyn SoftwareProvider>> {
+        self.providers.get(id).cloned()
+    }
 }
 
 impl Default for ProviderRegistry {

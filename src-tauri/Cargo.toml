@@ -17,6 +17,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[[bin]]
+name = "ran-sidecar"
+path = "src/bin/ran-sidecar.rs"
+
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
@@ -33,6 +37,8 @@ zip = "2"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 runas = "1"
+async-trait = "0.1"
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"
+
