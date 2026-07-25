@@ -1,8 +1,11 @@
 mod commands;
+mod boot;
 mod download;
 mod elevation;
 mod error;
+mod nvm;
 mod paths;
+mod pm2;
 mod provider;
 mod repo;
 mod settings;
@@ -57,6 +60,23 @@ pub fn run() {
             commands::software::install_software,
             commands::software::control_software,
             commands::software::uninstall_software,
+            commands::node::node_provisioned,
+            commands::node::known_node_versions,
+            commands::node::node_versions_local,
+            commands::node::provision_nvm,
+            commands::node::install_node,
+            commands::node::use_node,
+            commands::node::uninstall_node,
+            commands::pm2::pm2_installed,
+            commands::pm2::ensure_pm2,
+            commands::pm2::pm2_list,
+            commands::pm2::pm2_apps,
+            commands::pm2::add_pm2_app,
+            commands::pm2::stop_pm2_app,
+            commands::pm2::restart_pm2_app,
+            commands::pm2::delete_pm2_app_cmd,
+            commands::pm2::pm2_boot_enabled,
+            commands::pm2::pm2_boot_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

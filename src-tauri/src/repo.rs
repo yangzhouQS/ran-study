@@ -1,6 +1,7 @@
 use crate::error::RanResult;
 use crate::provider::{RunMode, SoftwareSpec};
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -112,6 +113,71 @@ impl Repo {
             .execute("DELETE FROM software WHERE id=?1", rusqlite::params![id])?;
         Ok(())
     }
+
+    pub fn insert_pm2_app(&self, a: &Pm2AppRow) -> RanResult<i64> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "INSERT INTO pm2_apps(name,script,cwd,node_version,env_json,instances,log_path,autostart,status)
+             VALUES (?1,?2,?3,?4,?5,1,'',?6,?7)",
+            rusqlite::params![
+                a.name,
+                a.script,
+                a.cwd,
+                a.node_version,
+                a.env_json,
+                if a.autostart { 1 } else { 0 },
+                "stopped"
+            ],
+        )?;
+        Ok(c.last_insert_rowid())
+    }
+
+    pub fn list_pm2_apps(&self) -> RanResult<Vec<Pm2AppRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id,name,script,cwd,node_version,env_json,autostart,status FROM pm2_apps",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(Pm2AppRow {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                script: r.get(2)?,
+                cwd: r.get(3)?,
+                node_version: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                env_json: r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                autostart: r.get::<_, i64>(6)? != 0,
+                status: r.get::<_, Option<String>>(7)?.unwrap_or_default(),
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn delete_pm2_app(&self, id: i64) -> RanResult<()> {
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM pm2_apps WHERE id=?1", rusqlite::params![id])?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pm2AppRow {
+    #[serde(default)]
+    pub id: i64,
+    pub name: String,
+    pub script: String,
+    pub cwd: String,
+    pub node_version: String,
+    pub env_json: String,
+    pub autostart: bool,
+    #[serde(default)]
+    pub status: String,
 }
 
 fn run_mode_str(m: RunMode) -> &'static str {
