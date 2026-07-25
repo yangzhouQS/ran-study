@@ -1,4 +1,5 @@
 pub mod system;
+pub mod software;
 pub mod task;
 
 use crate::provider::registry::ProviderRegistry;

@@ -1,6 +1,7 @@
 use crate::error::RanResult;
+use crate::provider::{RunMode, SoftwareSpec};
 use rusqlite::Connection;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub struct Repo {
@@ -41,6 +42,112 @@ impl Repo {
             conn.execute(sql, [])?;
         }
         Ok(())
+    }
+
+    pub fn insert_software(&self, spec: &SoftwareSpec) -> RanResult<i64> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO software(type,version,install_path,data_path,run_mode,service_name,status,is_active)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,1)",
+            rusqlite::params![
+                spec.provider,
+                spec.version,
+                spec.install_path.to_string_lossy(),
+                spec.data_path.to_string_lossy(),
+                run_mode_str(spec.run_mode),
+                spec.service_name.as_deref().unwrap_or(""),
+                "stopped",
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn list_software(&self) -> RanResult<Vec<SoftwareSpec>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT id,type,version,install_path,data_path,run_mode,service_name FROM software")?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, String>(5)?,
+                r.get::<_, String>(6)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, prov, ver, inst, data, rm, svc) = row?;
+            let inst_p = PathBuf::from(&inst);
+            out.push(SoftwareSpec {
+                id,
+                provider: prov.clone(),
+                version: ver,
+                bin_path: bin_for_provider(&prov, &inst_p),
+                install_path: inst_p.clone(),
+                data_path: PathBuf::from(&data),
+                config_path: config_for_provider(&prov, &inst_p),
+                port: default_port(&prov),
+                run_mode: parse_run_mode(&rm),
+                service_name: if svc.is_empty() { None } else { Some(svc) },
+            });
+        }
+        Ok(out)
+    }
+
+    pub fn update_status(&self, id: i64, status: &str) -> RanResult<()> {
+        self.conn.lock().unwrap().execute(
+            "UPDATE software SET status=?1 WHERE id=?2",
+            rusqlite::params![status, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_software(&self, id: i64) -> RanResult<()> {
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM software WHERE id=?1", rusqlite::params![id])?;
+        Ok(())
+    }
+}
+
+fn run_mode_str(m: RunMode) -> &'static str {
+    match m {
+        RunMode::Portable => "portable",
+        RunMode::Service => "service",
+    }
+}
+
+fn parse_run_mode(s: &str) -> RunMode {
+    if s == "service" {
+        RunMode::Service
+    } else {
+        RunMode::Portable
+    }
+}
+
+fn bin_for_provider(prov: &str, inst: &Path) -> PathBuf {
+    match prov {
+        "mysql" => inst.join("bin").join("mysqld.exe"),
+        _ => inst.join("redis-server.exe"),
+    }
+}
+
+fn config_for_provider(prov: &str, inst: &Path) -> PathBuf {
+    match prov {
+        "mysql" => inst.join("my.ini"),
+        _ => inst.join("redis.conf"),
+    }
+}
+
+fn default_port(prov: &str) -> u16 {
+    match prov {
+        "mysql" => 3306,
+        "redis" => 6379,
+        _ => 0,
     }
 }
 

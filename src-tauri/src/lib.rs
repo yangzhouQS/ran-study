@@ -10,6 +10,8 @@ mod task;
 
 use commands::system::{get_settings, get_system_info, init_root, set_root_dir};
 use commands::task::{create_demo_task, list_tasks};
+use provider::mysql::MysqlProvider;
+use provider::redis::RedisProvider;
 use provider::registry::ProviderRegistry;
 use repo::Repo;
 use settings::Settings;
@@ -21,17 +23,22 @@ pub fn run() {
     let root = settings::read_bootstrap_root().unwrap_or_else(paths::default_root);
     // 2) 首次启动即建目录，确保 repo/settings 可用
     let _ = paths::ensure_layout(&root);
+    std::env::set_var("RAN_TOOLS_DIR", root.join("tools"));
 
     let repo = Repo::open(&root.join("config")).unwrap_or_else(|_| Repo {
         conn: Mutex::new(rusqlite::Connection::open_in_memory().unwrap()),
     });
     let settings = Settings::load(&root.join("config")).unwrap_or_default();
 
+    let mut providers = ProviderRegistry::new();
+    providers.register(Arc::new(MysqlProvider));
+    providers.register(Arc::new(RedisProvider));
+
     let state = Arc::new(commands::AppState {
         root: root.clone(),
         settings: Mutex::new(settings),
         repo,
-        providers: Mutex::new(ProviderRegistry::new()),
+        providers: Mutex::new(providers),
         tasks: task::TaskQueue::new(),
     });
 
@@ -45,6 +52,11 @@ pub fn run() {
             set_root_dir,
             list_tasks,
             create_demo_task,
+            commands::software::list_catalog,
+            commands::software::list_installed,
+            commands::software::install_software,
+            commands::software::control_software,
+            commands::software::uninstall_software,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

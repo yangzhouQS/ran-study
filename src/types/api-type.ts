@@ -22,3 +22,32 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
 }
+
+export interface ManifestVersion {
+  version: string;
+  lts: boolean;
+}
+
+export interface SoftwareCatalog {
+  id: string;
+  versions: ManifestVersion[];
+  downloadUrlTemplate: string;
+  archive: string;
+  mirror: string;
+}
+
+export type RunMode = 'Portable' | 'Service';
+export type RunStatus = 'Running' | 'Stopped' | 'Unknown';
+
+export interface InstalledSoftware {
+  id: number;
+  provider: string;
+  version: string;
+  installPath: string;
+  binPath: string;
+  dataPath: string;
+  configPath: string;
+  port: number;
+  runMode: RunMode;
+  serviceName: string | null;
+}

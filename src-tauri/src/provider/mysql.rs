@@ -3,7 +3,7 @@ use crate::error::{RanError, RanResult};
 use crate::provider::service;
 use crate::provider::{process, ProgressCb, RunMode, RunStatus, SoftwareSpec, SoftwareProvider};
 use async_trait::async_trait;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 const DEFAULT_PORT: u16 = 3306;
