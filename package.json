@@ -1,21 +1,25 @@
 {
-  "name": "tauri-app",
+  "name": "ran-study",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview",
     "tauri": "tauri"
   },
   "dependencies": {
+    "@rsbuild/core": "^2.1.8",
+    "@rsbuild/plugin-vue": "^2.0.1",
+    "@rsbuild/plugin-vue-jsx": "^2.0.1",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "vue": "^3.5.40"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
-    "vite": "^6.0.3",
+    "@types/node": "^26.1.1",
     "typescript": "~5.6.2"
   }
 }
