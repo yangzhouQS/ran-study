@@ -51,3 +51,27 @@ export interface InstalledSoftware {
   runMode: RunMode;
   serviceName: string | null;
 }
+
+export interface NodeVersion {
+  version: string;
+  active: boolean;
+}
+
+export interface Pm2Process {
+  name: string;
+  pid: number | null;
+  status: string;
+  cpu: number | null;
+  memory: number | null;
+}
+
+export interface Pm2App {
+  id: number;
+  name: string;
+  script: string;
+  cwd: string;
+  nodeVersion: string;
+  envJson: string;
+  autostart: boolean;
+  status: string;
+}

@@ -18,6 +18,8 @@ export default defineComponent({
           <ElMenu router defaultActive="/dashboard">
             <ElMenuItem index="/dashboard">首页</ElMenuItem>
             <ElMenuItem index="/software">软件管理</ElMenuItem>
+            <ElMenuItem index="/node-version">Node 版本</ElMenuItem>
+            <ElMenuItem index="/pm2-app">PM2 应用</ElMenuItem>
             <ElMenuItem index="/task-queue">任务队列</ElMenuItem>
           </ElMenu>
         </ElAside>

@@ -3,6 +3,8 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 const Dashboard = () => import('@/views/dashboard/dashboard');
 const Software = () => import('@/views/software/software');
 const TaskQueue = () => import('@/views/task-queue/task-queue');
+const NodeVersion = () => import('@/views/node-version/node-version');
+const Pm2App = () => import('@/views/pm2-app/pm2-app');
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -10,6 +12,8 @@ export const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', name: 'dashboard', component: Dashboard },
     { path: '/software', name: 'software', component: Software },
+    { path: '/node-version', name: 'nodeVersion', component: NodeVersion },
+    { path: '/pm2-app', name: 'pm2App', component: Pm2App },
     { path: '/task-queue', name: 'taskQueue', component: TaskQueue },
   ],
 });
