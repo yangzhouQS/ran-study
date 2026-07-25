@@ -3,6 +3,9 @@ mod paths;
 mod settings;
 mod repo;
 mod provider;
+mod download;
+mod task;
+mod elevation;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
