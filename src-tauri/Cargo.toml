@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Windows local dev software manager"
 authors = ["you"]
 edition = "2021"
+default-run = "ran-study"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
