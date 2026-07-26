@@ -224,9 +224,9 @@ fn cmd_str(action: &str, spec: &SoftwareSpec, linked_svc: &Option<String>) -> St
     match spec.provider.as_str() {
         "mysql" => match (spec.run_mode, action) {
             (RunMode::Portable, "start") => format!("mysqld --defaults-file={cfg}"),
-            (RunMode::Portable, "stop") => format!("mysqladmin -u root -P {port} shutdown"),
+            (RunMode::Portable, "stop") => format!("mysqladmin -u root -P {port} shutdown (+kill兜底)"),
             (RunMode::Portable, "restart") => {
-                format!("mysqladmin -u root -P {port} shutdown → 1.2s → mysqld --defaults-file={cfg}")
+                format!("mysqladmin -u root -P {port} shutdown (+kill) → 1.2s → mysqld --defaults-file={cfg}")
             }
             (RunMode::Service, "start") => format!("sc start {svc}"),
             (RunMode::Service, "stop") => format!("sc stop {svc}"),
@@ -235,9 +235,9 @@ fn cmd_str(action: &str, spec: &SoftwareSpec, linked_svc: &Option<String>) -> St
         },
         "redis" => match (spec.run_mode, action) {
             (RunMode::Portable, "start") => format!("redis-server {cfg}"),
-            (RunMode::Portable, "stop") => format!("redis-cli -p {port} shutdown"),
+            (RunMode::Portable, "stop") => format!("redis-cli -p {port} shutdown (+kill兜底)"),
             (RunMode::Portable, "restart") => {
-                format!("redis-cli -p {port} shutdown → 1.2s → redis-server {cfg}")
+                format!("redis-cli -p {port} shutdown (+kill) → 1.2s → redis-server {cfg}")
             }
             (RunMode::Service, "start") => format!("nssm start {svc}"),
             (RunMode::Service, "stop") => format!("nssm stop {svc}"),
@@ -246,9 +246,9 @@ fn cmd_str(action: &str, spec: &SoftwareSpec, linked_svc: &Option<String>) -> St
         },
         "postgres" => match (spec.run_mode, action) {
             (RunMode::Portable, "start") => format!("pg_ctl start -D {data} -w"),
-            (RunMode::Portable, "stop") => format!("pg_ctl stop -D {data} -m fast"),
+            (RunMode::Portable, "stop") => format!("pg_ctl stop -D {data} -m fast (+kill兜底)"),
             (RunMode::Portable, "restart") => {
-                format!("pg_ctl stop -D {data} -m fast → 1.2s → pg_ctl start -D {data} -w")
+                format!("pg_ctl stop -D {data} -m fast (+kill) → 1.2s → pg_ctl start -D {data} -w")
             }
             (RunMode::Service, "start") => format!("sc start {svc}"),
             (RunMode::Service, "stop") => format!("sc stop {svc}"),
@@ -318,6 +318,13 @@ pub async fn control_software(
             } else {
                 prov.stop(&spec).await?;
             }
+            // 兜底：优雅停止后若端口仍在监听，强制按端口杀进程
+            if crate::download::port_open("127.0.0.1", spec.port) {
+                let killed = crate::provider::process::kill_by_port(spec.port).unwrap_or(0);
+                if killed > 0 {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                }
+            }
             let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "stop", &format!("{}@{}", spec.provider, spec.version));
@@ -328,6 +335,10 @@ pub async fn control_software(
                 crate::provider::service::sc_stop(svc)?;
             } else {
                 prov.stop(&spec).await?;
+            }
+            // 兜底：停止后若端口仍在，强制杀进程
+            if crate::download::port_open("127.0.0.1", spec.port) {
+                let _ = crate::provider::process::kill_by_port(spec.port);
             }
             tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
             if let Some(svc) = &linked_svc {

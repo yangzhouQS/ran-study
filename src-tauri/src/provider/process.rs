@@ -50,3 +50,21 @@ pub fn pid_alive(pid: u32) -> bool {
         })
         .unwrap_or(false)
 }
+
+/// 按端口查找监听进程并强制结束（优雅停止失败时的兜底）
+pub fn kill_by_port(port: u16) -> RanResult<u32> {
+    let out = Command::new("netstat")
+        .args(["-ano"])
+        .output()
+        .map_err(|e| RanError::Other(format!("netstat 失败: {e}")))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let entries = crate::sysproc::parse_listening(&text);
+    let mut killed = 0u32;
+    for (p, pid, _) in entries {
+        if p == port as u32 && pid > 0 {
+            kill_tree(pid)?;
+            killed += 1;
+        }
+    }
+    Ok(killed)
+}
