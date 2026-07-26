@@ -12,6 +12,7 @@ import {
 import {
   Box,
   Coin,
+  Connection,
   Cpu,
   DataLine,
   Document,
@@ -34,6 +35,7 @@ interface MenuEntry {
 const MENU: MenuEntry[] = [
   { index: '/dashboard', label: '首页', Icon: HomeFilled },
   { index: '/software', label: '软件管理', Icon: Box },
+  { index: '/custom-apps', label: '第三方应用', Icon: Connection },
   { index: '/database', label: '数据库', Icon: Coin },
   { index: '/node-version', label: 'Node 版本', Icon: Cpu },
   { index: '/pm2-app', label: 'PM2 应用', Icon: Operation },

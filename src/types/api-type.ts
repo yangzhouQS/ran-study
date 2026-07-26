@@ -165,3 +165,14 @@ export interface LogFile {
   name: string;
   size: number;
 }
+
+export interface CustomApp {
+  id: number;
+  name: string;
+  exe: string;
+  args: string;
+  cwd: string;
+  serviceName: string | null;
+  pid: number;
+  status: string;
+}
