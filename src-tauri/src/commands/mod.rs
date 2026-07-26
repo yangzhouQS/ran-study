@@ -8,6 +8,7 @@ pub mod monitor;
 pub mod schedule;
 pub mod terminal;
 pub mod dbadmin;
+pub mod pgadmin;
 pub mod redis_admin;
 pub mod logs;
 pub mod apps;

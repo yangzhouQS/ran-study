@@ -33,6 +33,14 @@ import {
   redisRun,
   redisRunRemote,
 } from '@/api/redis-api';
+import {
+  backupPg,
+  changePgPassword,
+  createPgDatabase,
+  importPg,
+  listPgDatabases,
+  runPgQuery,
+} from '@/api/pg-api';
 import type { InstalledSoftware, MysqlInstance } from '@/types/api-type';
 
 export default defineComponent({
@@ -58,8 +66,16 @@ export default defineComponent({
     const cli = reactive({ args: 'PING', out: '' });
     const remote = reactive({ host: '127.0.0.1', port: 6379, pw: '', cmd: 'PING', out: '' });
 
+    // PostgreSQL
+    const pgDatabases = ref<string[]>([]);
+    const pgImportSrc: Record<string, string> = {};
+    const pgPw = reactive({ value: '', newVal: '' });
+    const pgCreate = reactive({ name: '', password: '' });
+    const pgSql = reactive({ sql: 'SELECT datname FROM pg_database;', output: '' });
+
     const isMysql = () => selected.value?.provider === 'mysql';
     const isRedis = () => selected.value?.provider === 'redis';
+    const isPostgres = () => selected.value?.provider === 'postgres';
 
     const loadDetail = async () => {
       if (!selected.value) return;
@@ -80,12 +96,20 @@ export default defineComponent({
         } catch {
           keys.value = [];
         }
+      } else if (isPostgres()) {
+        try {
+          pgDatabases.value = await listPgDatabases(selected.value.id);
+        } catch {
+          pgDatabases.value = [];
+        }
       }
     };
 
     onMounted(async () => {
       const all = await listInstalled();
-      instances.value = all.filter((s) => s.provider === 'mysql' || s.provider === 'redis');
+      instances.value = all.filter(
+        (s) => s.provider === 'mysql' || s.provider === 'redis' || s.provider === 'postgres',
+      );
       if (instances.value.length > 0) {
         selected.value = instances.value[0];
         await loadDetail();
@@ -188,6 +212,43 @@ export default defineComponent({
       ElMessage.success('Redis 密码已修改并重启');
       redisPw.value = redisPw.newVal;
       redisPw.newVal = '';
+    };
+
+    // ---- PostgreSQL ops ----
+    const onPgPw = async () => {
+      if (!selected.value || !pgPw.newVal) return;
+      await changePgPassword(selected.value.id, pgPw.newVal);
+      ElMessage.success('postgres 密码已修改');
+      pgPw.value = pgPw.newVal;
+      pgPw.newVal = '';
+    };
+    const onCreatePgDb = async () => {
+      if (!selected.value || !pgCreate.name) return;
+      await createPgDatabase(selected.value.id, pgCreate.name, pgCreate.password || null);
+      ElMessage.success(`已创建库 ${pgCreate.name}`);
+      pgCreate.name = '';
+      pgCreate.password = '';
+      await loadDetail();
+    };
+    const onBackupPg = async (db: string) => {
+      if (!selected.value) return;
+      const p = await backupPg(selected.value.id, db);
+      ElMessage.success(`已备份到：${p}`);
+    };
+    const onImportPg = async (db: string) => {
+      if (!selected.value) return;
+      const src = pgImportSrc[db];
+      if (!src) return;
+      await importPg(selected.value.id, db, src);
+      ElMessage.success(`已导入 ${src}`);
+    };
+    const onRunPgSql = async () => {
+      if (!selected.value) return;
+      try {
+        pgSql.output = await runPgQuery(selected.value.id, pgSql.sql);
+      } catch (e) {
+        pgSql.output = String(e);
+      }
     };
 
     return () => (
@@ -359,6 +420,66 @@ export default defineComponent({
               </ElFormItem>
             </ElForm>
             <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '120px', overflow: 'auto' }}>{remote.out}</pre>
+          </div>
+        ) : null}
+
+        {isPostgres() && selected.value ? (
+          <div>
+            <ElForm labelWidth="90" inline style={{ marginBottom: '8px' }}>
+              <ElFormItem label="当前密码">
+                <ElInput
+                  modelValue={pgPw.value}
+                  onInput={(v: string) => { pgPw.value = v; }}
+                  size="small"
+                  style={{ width: '140px' }}
+                  placeholder="无密码留空"
+                />
+              </ElFormItem>
+              <ElFormItem label="新密码">
+                <ElInput
+                  modelValue={pgPw.newVal}
+                  onInput={(v: string) => { pgPw.newVal = v; }}
+                  size="small"
+                  style={{ width: '140px' }}
+                />
+              </ElFormItem>
+              <ElFormItem>
+                <ElButton size="small" type="primary" onClick={onPgPw}>改 postgres 密码</ElButton>
+              </ElFormItem>
+            </ElForm>
+
+            <ElForm labelWidth="60" inline style={{ marginBottom: '8px' }}>
+              <ElFormItem label="库名">
+                <ElInput modelValue={pgCreate.name} onInput={(v: string) => { pgCreate.name = v; }} size="small" style={{ width: '140px' }} />
+              </ElFormItem>
+              <ElFormItem label="库密码">
+                <ElInput modelValue={pgCreate.password} onInput={(v: string) => { pgCreate.password = v; }} size="small" style={{ width: '140px' }} placeholder="留空=不建用户" />
+              </ElFormItem>
+              <ElFormItem>
+                <ElButton size="small" type="primary" onClick={onCreatePgDb}>建库</ElButton>
+              </ElFormItem>
+            </ElForm>
+
+            <h3>数据库</h3>
+            <ElTable data={pgDatabases.value.map((d) => ({ name: d }))}>
+              <ElTableColumn prop="name" label="库名" />
+              <ElTableColumn label="备份" width={120}>
+                {{ default: (scope: { row: { name: string } }) => <ElButton size="small" onClick={() => onBackupPg(scope.row.name)}>备份</ElButton> }}
+              </ElTableColumn>
+              <ElTableColumn label="导入 .sql" width={320}>
+                {{ default: (scope: { row: { name: string } }) => (
+                  <span>
+                    <ElInput modelValue={pgImportSrc[scope.row.name] || ''} onInput={(v: string) => { pgImportSrc[scope.row.name] = v; }} placeholder="D:\path\file.sql" size="small" style={{ width: '180px' }} />
+                    <ElButton size="small" style={{ marginLeft: '4px' }} onClick={() => onImportPg(scope.row.name)}>导入</ElButton>
+                  </span>
+                ) }}
+              </ElTableColumn>
+            </ElTable>
+
+            <h3 style={{ marginTop: '12px' }}>执行 SQL（psql）</h3>
+            <ElInput type="textarea" modelValue={pgSql.sql} onInput={(v: string) => { pgSql.sql = v; }} rows={3} />
+            <ElButton size="small" type="primary" style={{ marginTop: '8px' }} onClick={onRunPgSql}>运行</ElButton>
+            <pre style={{ marginTop: '8px', background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '240px', overflow: 'auto' }}>{pgSql.output}</pre>
           </div>
         ) : null}
       </div>

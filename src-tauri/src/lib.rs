@@ -7,6 +7,7 @@ mod error;
 mod monitor;
 mod nvm;
 mod paths;
+mod pgadmin;
 mod pm2;
 mod provider;
 mod repo;
@@ -154,6 +155,12 @@ pub fn run() {
             commands::dbadmin::stop_mysql_instance,
             commands::dbadmin::status_mysql_instance,
             commands::dbadmin::delete_mysql_instance,
+            commands::pgadmin::list_pg_databases,
+            commands::pgadmin::create_pg_database,
+            commands::pgadmin::change_pg_password,
+            commands::pgadmin::backup_pg,
+            commands::pgadmin::import_pg,
+            commands::pgadmin::run_pg_query,
             commands::pm2::pm2_logs,
             commands::redis_admin::redis_list_keys,
             commands::redis_admin::redis_add_key,
