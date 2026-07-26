@@ -13,6 +13,7 @@ const TerminalView = () => import('@/views/terminal/terminal');
 const Database = () => import('@/views/database/database');
 const Settings = () => import('@/views/settings/settings');
 const Logs = () => import('@/views/logs/logs');
+const DevTools = () => import('@/views/devtools/devtools');
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -29,6 +30,7 @@ export const router = createRouter({
     { path: '/schedule', name: 'schedule', component: Schedule },
     { path: '/terminal', name: 'terminal', component: TerminalView },
     { path: '/settings', name: 'settings', component: Settings },
+    { path: '/devtools', name: 'devtools', component: DevTools },
     { path: '/logs', name: 'logs', component: Logs },
     { path: '/task-queue', name: 'taskQueue', component: TaskQueue },
   ],

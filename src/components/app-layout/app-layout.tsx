@@ -23,6 +23,7 @@ import {
   Operation,
   Setting,
   Timer,
+  Tools,
 } from '@element-plus/icons-vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 
@@ -46,6 +47,7 @@ const MENU: MenuEntry[] = [
   { index: '/logs', label: '日志', Icon: Document },
   { index: '/task-queue', label: '任务队列', Icon: List },
   { index: '/settings', label: '设置', Icon: Setting },
+  { index: '/devtools', label: '开发工具箱', Icon: Tools },
 ];
 
 export default defineComponent({
