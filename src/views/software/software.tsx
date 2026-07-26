@@ -5,6 +5,7 @@ import {
   ElDialog,
   ElForm,
   ElFormItem,
+  ElIcon,
   ElInput,
   ElMessage,
   ElOption,
@@ -13,6 +14,7 @@ import {
   ElTableColumn,
   ElTag,
 } from 'element-plus';
+import { Document, FolderOpened } from '@element-plus/icons-vue';
 import {
   controlSoftware,
   installSoftware,
@@ -204,6 +206,16 @@ export default defineComponent({
       if (typeof f === 'string') editForm.configPath = f;
     };
 
+    // 输入框后置插槽图标（dir=true 文件夹，false 文件）
+    const suffixSlot = (onClick: () => void, dir: boolean) => () => (
+      <span
+        onClick={onClick}
+        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', color: '#909399' }}
+      >
+        <ElIcon>{dir ? <FolderOpened /> : <Document />}</ElIcon>
+      </span>
+    );
+
     return () => (
       <div>
         <ElAlert
@@ -381,33 +393,27 @@ export default defineComponent({
               </ElSelect>
             </ElFormItem>
             <ElFormItem label="安装目录">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={linkForm.installPath}
-                  onInput={(v: string) => {
-                    linkForm.installPath = v;
-                  }}
-                  placeholder="点击右侧选择文件夹，或手动输入"
-                />
-                <ElButton size="small" onClick={pickInstall}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={linkForm.installPath}
+                onInput={(v: string) => {
+                  linkForm.installPath = v;
+                }}
+                placeholder="点击右侧图标选择文件夹，或手动输入"
+              >
+                {{ suffix: suffixSlot(pickInstall, true) }}
+              </ElInput>
             </ElFormItem>
             {linkForm.provider === 'postgres' ? (
               <ElFormItem label="数据目录">
-                <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                  <ElInput
-                    modelValue={linkForm.dataPath}
-                    onInput={(v: string) => {
-                      linkForm.dataPath = v;
-                    }}
-                    placeholder="PG data 目录，点击右侧选择"
-                  />
-                  <ElButton size="small" onClick={pickData}>
-                    选择
-                  </ElButton>
-                </div>
+                <ElInput
+                  modelValue={linkForm.dataPath}
+                  onInput={(v: string) => {
+                    linkForm.dataPath = v;
+                  }}
+                  placeholder="PG data 目录，点击右侧图标选择"
+                >
+                  {{ suffix: suffixSlot(pickData, true) }}
+                </ElInput>
               </ElFormItem>
             ) : null}
             <ElFormItem label="版本(可选)">
@@ -420,32 +426,26 @@ export default defineComponent({
               />
             </ElFormItem>
             <ElFormItem label="可执行文件">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={linkForm.binPath}
-                  onInput={(v: string) => {
-                    linkForm.binPath = v;
-                  }}
-                  placeholder="留空按默认推导（mysql: bin/mysqld.exe；redis: redis-server.exe；pg: bin/pg_ctl.exe）"
-                />
-                <ElButton size="small" onClick={pickBin}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={linkForm.binPath}
+                onInput={(v: string) => {
+                  linkForm.binPath = v;
+                }}
+                placeholder="留空按默认推导（mysql: bin/mysqld.exe；redis: redis-server.exe；pg: bin/pg_ctl.exe）"
+              >
+                {{ suffix: suffixSlot(pickBin, false) }}
+              </ElInput>
             </ElFormItem>
             <ElFormItem label="配置文件">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={linkForm.configPath}
-                  onInput={(v: string) => {
-                    linkForm.configPath = v;
-                  }}
-                  placeholder="留空按默认推导（my.ini / redis.conf / postgresql.conf）"
-                />
-                <ElButton size="small" onClick={pickConfig}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={linkForm.configPath}
+                onInput={(v: string) => {
+                  linkForm.configPath = v;
+                }}
+                placeholder="留空按默认推导（my.ini / redis.conf / postgresql.conf）"
+              >
+                {{ suffix: suffixSlot(pickConfig, false) }}
+              </ElInput>
             </ElFormItem>
             <ElFormItem label="端口">
               <ElInput
@@ -504,57 +504,45 @@ export default defineComponent({
               />
             </ElFormItem>
             <ElFormItem label="安装目录">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={editForm.installPath}
-                  onInput={(v: string) => {
-                    editForm.installPath = v;
-                  }}
-                />
-                <ElButton size="small" onClick={pickEditInstall}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={editForm.installPath}
+                onInput={(v: string) => {
+                  editForm.installPath = v;
+                }}
+              >
+                {{ suffix: suffixSlot(pickEditInstall, true) }}
+              </ElInput>
             </ElFormItem>
             <ElFormItem label="可执行文件">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={editForm.binPath}
-                  onInput={(v: string) => {
-                    editForm.binPath = v;
-                  }}
-                />
-                <ElButton size="small" onClick={pickEditBin}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={editForm.binPath}
+                onInput={(v: string) => {
+                  editForm.binPath = v;
+                }}
+              >
+                {{ suffix: suffixSlot(pickEditBin, false) }}
+              </ElInput>
             </ElFormItem>
             <ElFormItem label="配置文件">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={editForm.configPath}
-                  onInput={(v: string) => {
-                    editForm.configPath = v;
-                  }}
-                />
-                <ElButton size="small" onClick={pickEditConfig}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={editForm.configPath}
+                onInput={(v: string) => {
+                  editForm.configPath = v;
+                }}
+              >
+                {{ suffix: suffixSlot(pickEditConfig, false) }}
+              </ElInput>
             </ElFormItem>
             <ElFormItem label="数据目录">
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <ElInput
-                  modelValue={editForm.dataPath}
-                  onInput={(v: string) => {
-                    editForm.dataPath = v;
-                  }}
-                  placeholder="PG data 目录等"
-                />
-                <ElButton size="small" onClick={pickEditData}>
-                  选择
-                </ElButton>
-              </div>
+              <ElInput
+                modelValue={editForm.dataPath}
+                onInput={(v: string) => {
+                  editForm.dataPath = v;
+                }}
+                placeholder="PG data 目录等"
+              >
+                {{ suffix: suffixSlot(pickEditData, true) }}
+              </ElInput>
             </ElFormItem>
             <ElFormItem label="端口">
               <ElInput
