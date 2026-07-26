@@ -23,6 +23,7 @@ import {
   writeSoftwareConfig,
 } from '@/api/software-api';
 import { getSystemInfo } from '@/api/system-api';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useInstalled } from '@/composables/use-installed';
 import { useTaskStream } from '@/composables/use-task-stream';
 import { useAppStore } from '@/store/app-store';
@@ -125,6 +126,14 @@ export default defineComponent({
       linkForm.serviceName = '';
       linkForm.dataPath = '';
       await refresh();
+    };
+    const pickInstall = async () => {
+      const d = await open({ directory: true, multiple: false });
+      if (typeof d === 'string') linkForm.installPath = d;
+    };
+    const pickData = async () => {
+      const d = await open({ directory: true, multiple: false });
+      if (typeof d === 'string') linkForm.dataPath = d;
     };
 
     return () => (
@@ -301,23 +310,33 @@ export default defineComponent({
               </ElSelect>
             </ElFormItem>
             <ElFormItem label="安装目录">
-              <ElInput
-                modelValue={linkForm.installPath}
-                onInput={(v: string) => {
-                  linkForm.installPath = v;
-                }}
-                placeholder="如 D:\mysql-8.0 或 C:\Program Files\Redis 或 D:\pgsql"
-              />
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={linkForm.installPath}
+                  onInput={(v: string) => {
+                    linkForm.installPath = v;
+                  }}
+                  placeholder="点击右侧选择文件夹，或手动输入"
+                />
+                <ElButton size="small" onClick={pickInstall}>
+                  选择
+                </ElButton>
+              </div>
             </ElFormItem>
             {linkForm.provider === 'postgres' ? (
               <ElFormItem label="数据目录">
-                <ElInput
-                  modelValue={linkForm.dataPath}
-                  onInput={(v: string) => {
-                    linkForm.dataPath = v;
-                  }}
-                  placeholder="PG data 目录，如 D:\pgdata"
-                />
+                <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                  <ElInput
+                    modelValue={linkForm.dataPath}
+                    onInput={(v: string) => {
+                      linkForm.dataPath = v;
+                    }}
+                    placeholder="PG data 目录，点击右侧选择"
+                  />
+                  <ElButton size="small" onClick={pickData}>
+                    选择
+                  </ElButton>
+                </div>
               </ElFormItem>
             ) : null}
             <ElFormItem label="版本(可选)">

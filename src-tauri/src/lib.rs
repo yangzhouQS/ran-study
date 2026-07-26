@@ -62,6 +62,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
             // 后台监控采样：每 10s 落库 + 清理 7 天前
