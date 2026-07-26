@@ -32,8 +32,11 @@ pub struct PortInfo {
 
 /// 进程列表（按 CPU 降序，上限 300）
 pub fn list_processes() -> Vec<ProcInfo> {
-    let mut sys = sysinfo::System::new_all();
+    let mut sys = crate::sysinfo_cache::shared()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     sys.refresh_cpu_usage();
+    sys.refresh_memory();
     let mut v: Vec<ProcInfo> = sys
         .processes()
         .iter()

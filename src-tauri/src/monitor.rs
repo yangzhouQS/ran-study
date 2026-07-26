@@ -22,8 +22,11 @@ pub struct SystemStats {
 }
 
 pub fn snapshot() -> SystemStats {
-    let mut sys = sysinfo::System::new_all();
+    let mut sys = crate::sysinfo_cache::shared()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     sys.refresh_cpu_usage();
+    sys.refresh_memory();
     let cpu = sys.global_cpu_usage();
     let disks = sysinfo::Disks::new_with_refreshed_list()
         .iter()
@@ -51,8 +54,11 @@ pub fn snapshot() -> SystemStats {
 
 /// 一次采样：系统快照 + CPU Top5 进程（共用一个 System，省开销）
 pub fn sample_with_procs() -> (SystemStats, Vec<ProcInfo>) {
-    let mut sys = sysinfo::System::new_all();
+    let mut sys = crate::sysinfo_cache::shared()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     sys.refresh_cpu_usage();
+    sys.refresh_memory();
     let cpu = sys.global_cpu_usage();
     let disks = sysinfo::Disks::new_with_refreshed_list()
         .iter()

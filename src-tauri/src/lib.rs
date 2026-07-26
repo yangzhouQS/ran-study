@@ -14,6 +14,7 @@ mod provider;
 mod repo;
 mod schedule;
 mod settings;
+mod sysinfo_cache;
 mod sysproc;
 mod task;
 mod terminal;
