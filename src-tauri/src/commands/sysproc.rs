@@ -20,3 +20,13 @@ pub fn list_services() -> RanResult<Vec<SvcInfo>> {
 pub fn control_service(name: String, action: String) -> RanResult<()> {
     sysproc::control_service(&name, &action)
 }
+
+#[tauri::command]
+pub fn process_protected(name: String) -> bool {
+    sysproc::is_protected_process(&name)
+}
+
+#[tauri::command]
+pub fn service_protected(name: String) -> bool {
+    sysproc::is_protected_service(&name)
+}

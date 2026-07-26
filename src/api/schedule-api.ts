@@ -9,3 +9,7 @@ export const toggleScheduled = (name: string, enabled: boolean) =>
   invoke<void>('toggle_scheduled', { name, enabled });
 export const deleteScheduled = (id: number, name: string) =>
   invoke<void>('delete_scheduled', { id, name });
+export const exportScheduled = (path: string, ids: number[]) =>
+  invoke<string>('export_scheduled', { path, ids });
+export const importScheduled = (path: string) =>
+  invoke<number>('import_scheduled', { path });

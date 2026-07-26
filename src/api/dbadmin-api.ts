@@ -12,3 +12,22 @@ export const importMysql = (id: number, db: string, src: string) =>
   invoke<void>('import_mysql', { id, db, src });
 export const runMysqlQuery = (id: number, sql: string) =>
   invoke<string>('run_mysql_query', { id, sql });
+
+import type { MysqlInstance, RunMode } from '@/types/api-type';
+
+export const listMysqlInstances = (id: number) =>
+  invoke<MysqlInstance[]>('list_mysql_instances', { id });
+export const createMysqlInstance = (
+  id: number,
+  name: string,
+  port: number,
+  runMode: RunMode,
+) => invoke<number>('create_mysql_instance', { id, name, port, runMode });
+export const startMysqlInstance = (id: number, instId: number) =>
+  invoke<void>('start_mysql_instance', { id, instId });
+export const stopMysqlInstance = (id: number, instId: number) =>
+  invoke<void>('stop_mysql_instance', { id, instId });
+export const statusMysqlInstance = (id: number, instId: number) =>
+  invoke<boolean>('status_mysql_instance', { id, instId });
+export const deleteMysqlInstance = (id: number, instId: number) =>
+  invoke<void>('delete_mysql_instance', { id, instId });

@@ -1,10 +1,13 @@
 import { defineComponent, onMounted, reactive, ref } from 'vue';
 import {
   ElButton,
+  ElDialog,
   ElForm,
   ElFormItem,
   ElInput,
   ElMessage,
+  ElRadioButton,
+  ElRadioGroup,
   ElSwitch,
   ElTable,
   ElTableColumn,
@@ -19,6 +22,7 @@ import {
   pm2BootSet,
   pm2Installed,
   pm2List,
+  pm2Logs,
   restartPm2App,
   stopPm2App,
 } from '@/api/pm2-api';
@@ -31,13 +35,8 @@ export default defineComponent({
     const procs = ref<Pm2Process[]>([]);
     const apps = ref<Pm2App[]>([]);
     const bootOn = ref(false);
-    const form = reactive({
-      name: '',
-      script: '',
-      cwd: '',
-      nodeVersion: '',
-      autostart: false,
-    });
+    const form = reactive({ name: '', script: '', cwd: '', nodeVersion: '', autostart: false });
+    const logs = reactive({ visible: false, name: '', kind: 'out' as 'out' | 'error', text: '' });
 
     const refresh = async () => {
       installed.value = await pm2Installed();
@@ -83,6 +82,24 @@ export default defineComponent({
       bootOn.value = await pm2BootEnabled();
     };
 
+    const openLogs = async (name: string) => {
+      logs.name = name;
+      logs.visible = true;
+      logs.kind = 'out';
+      await refreshLogs();
+    };
+    const refreshLogs = async () => {
+      try {
+        logs.text = await pm2Logs(logs.name, logs.kind, 500);
+      } catch (e) {
+        logs.text = String(e);
+      }
+    };
+    const onKind = async (v: 'out' | 'error') => {
+      logs.kind = v;
+      await refreshLogs();
+    };
+
     return () => (
       <div>
         <div style={{ marginBottom: '8px' }}>
@@ -118,9 +135,7 @@ export default defineComponent({
             />
           </ElFormItem>
           <ElFormItem>
-            <ElButton type="primary" onClick={doAdd}>
-              添加并启动
-            </ElButton>
+            <ElButton type="primary" onClick={doAdd}>添加并启动</ElButton>
           </ElFormItem>
         </ElForm>
 
@@ -129,16 +144,13 @@ export default defineComponent({
           <ElTableColumn prop="name" label="名称" />
           <ElTableColumn prop="status" label="状态" width={120} />
           <ElTableColumn prop="pid" label="PID" width={90} />
-          <ElTableColumn label="操作" width={220}>
+          <ElTableColumn label="操作" width={340}>
             {{
               default: (scope: { row: Pm2Process }) => (
                 <span>
-                  <ElButton size="small" onClick={() => restartPm2App(scope.row.name)}>
-                    重启
-                  </ElButton>
-                  <ElButton size="small" onClick={() => stopPm2App(scope.row.name)}>
-                    停止
-                  </ElButton>
+                  <ElButton size="small" onClick={() => restartPm2App(scope.row.name)}>重启</ElButton>
+                  <ElButton size="small" onClick={() => stopPm2App(scope.row.name)}>停止</ElButton>
+                  <ElButton size="small" onClick={() => openLogs(scope.row.name)}>日志</ElButton>
                 </span>
               ),
             }}
@@ -153,11 +165,7 @@ export default defineComponent({
           <ElTableColumn label="自启" width={90}>
             {{
               default: (scope: { row: Pm2App }) =>
-                scope.row.autostart ? (
-                  <ElTag type="success">是</ElTag>
-                ) : (
-                  <ElTag>否</ElTag>
-                ),
+                scope.row.autostart ? <ElTag type="success">是</ElTag> : <ElTag>否</ElTag>,
             }}
           </ElTableColumn>
           <ElTableColumn label="操作" width={120}>
@@ -174,6 +182,24 @@ export default defineComponent({
             }}
           </ElTableColumn>
         </ElTable>
+
+        <ElDialog
+          title={`日志 - ${logs.name}`}
+          modelValue={logs.visible}
+          onUpdate:modelValue={(v: boolean) => { logs.visible = v; }}
+          width="780px"
+        >
+          <div style={{ marginBottom: '8px' }}>
+            <ElRadioGroup modelValue={logs.kind} onChange={(v: unknown) => onKind(v as 'out' | 'error')}>
+              <ElRadioButton value="out">stdout</ElRadioButton>
+              <ElRadioButton value="error">stderr</ElRadioButton>
+            </ElRadioGroup>
+            <ElButton size="small" style={{ marginLeft: '8px' }} onClick={refreshLogs}>刷新</ElButton>
+          </div>
+          <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '420px', overflow: 'auto' }}>
+            {logs.text}
+          </pre>
+        </ElDialog>
       </div>
     );
   },

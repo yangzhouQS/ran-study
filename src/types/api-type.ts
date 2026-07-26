@@ -118,3 +118,22 @@ export interface TerminalOutput {
   sessionId: string;
   data: string;
 }
+
+export interface MysqlInstance {
+  id: number;
+  softwareId: number;
+  name: string;
+  port: number;
+  dataPath: string;
+  configPath: string;
+  serviceName: string | null;
+  status: string;
+}
+
+export interface MonitorSample {
+  ts: number;
+  cpu: number;
+  memUsed: number;
+  memTotal: number;
+  procs: string;
+}

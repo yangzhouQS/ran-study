@@ -4,6 +4,8 @@ import type { Pm2App, Pm2Process } from '@/types/api-type';
 export const pm2Installed = () => invoke<boolean>('pm2_installed');
 export const ensurePm2 = () => invoke<void>('ensure_pm2');
 export const pm2List = () => invoke<Pm2Process[]>('pm2_list');
+export const pm2Logs = (name: string, kind: 'out' | 'error', lines: number) =>
+  invoke<string>('pm2_logs', { name, kind, lines });
 export const pm2Apps = () => invoke<Pm2App[]>('pm2_apps');
 export const addPm2App = (row: Omit<Pm2App, 'id' | 'status'>) =>
   invoke<number>('add_pm2_app', { row });

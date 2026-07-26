@@ -8,6 +8,19 @@ import {
 } from '@/api/sysproc-api';
 import type { ProcInfo, SvcInfo } from '@/types/api-type';
 
+const PROTECTED_PROC = new Set([
+  'ran-study', 'ran_study', 'ran-sidecar', 'csrss', 'lsass', 'smss',
+  'wininit', 'winlogon', 'services', 'system', 'registry', 'fontdrvhost', 'dwm',
+]);
+const PROTECTED_SVC = new Set([
+  'audiosrv', 'audioendpointbuilder', 'bits', 'cryptsvc', 'dcomlaunch', 'dhcp',
+  'dnscache', 'eventlog', 'eventsystem', 'lsm', 'lanmanserver', 'lanmanworkstation',
+  'netman', 'plugplay', 'power', 'profsvc', 'rpceptmapper', 'rpcss', 'samss',
+  'schedule', 'sens', 'spooler', 'systemeventsbroker', 'usermanager', 'winmgmt', 'wuauserv',
+]);
+const procProtected = (n: string) => PROTECTED_PROC.has(n.replace(/\.exe$/i, '').toLowerCase());
+const svcProtected = (n: string) => PROTECTED_SVC.has(n.toLowerCase());
+
 export default defineComponent({
   name: 'ProcessService',
   setup() {
@@ -26,8 +39,8 @@ export default defineComponent({
       tab.value = t;
       await refresh();
     };
-    const kill = async (pid: number) => {
-      await killProcess(pid);
+    const kill = async (p: ProcInfo) => {
+      await killProcess(p.pid, p.name);
       await refresh();
     };
     const svc = async (name: string, action: 'start' | 'stop') => {
@@ -80,7 +93,20 @@ export default defineComponent({
         {tab.value === 'processes' ? (
           <ElTable data={filteredProcs()} height="600">
             <ElTableColumn prop="pid" label="PID" width={90} />
-            <ElTableColumn prop="name" label="名称" width={180} />
+            <ElTableColumn label="名称" width={200}>
+              {{
+                default: (scope: { row: ProcInfo }) => (
+                  <span>
+                    {scope.row.name}
+                    {procProtected(scope.row.name) ? (
+                      <ElTag type="danger" size="small" style={{ marginLeft: '6px' }}>
+                        保护
+                      </ElTag>
+                    ) : null}
+                  </span>
+                ),
+              }}
+            </ElTableColumn>
             <ElTableColumn prop="cpu" label="CPU%" width={90} />
             <ElTableColumn prop="memory" label="内存(KB)" width={120} />
             <ElTableColumn prop="user" label="用户" width={140} />
@@ -88,7 +114,12 @@ export default defineComponent({
             <ElTableColumn label="操作" width={100}>
               {{
                 default: (scope: { row: ProcInfo }) => (
-                  <ElButton type="danger" size="small" onClick={() => kill(scope.row.pid)}>
+                  <ElButton
+                    type="danger"
+                    size="small"
+                    disabled={procProtected(scope.row.name)}
+                    onClick={() => kill(scope.row)}
+                  >
                     结束
                   </ElButton>
                 ),
@@ -97,7 +128,20 @@ export default defineComponent({
           </ElTable>
         ) : (
           <ElTable data={filteredSvcs()} height="600">
-            <ElTableColumn prop="name" label="服务名" width={220} />
+            <ElTableColumn label="服务名" width={220}>
+              {{
+                default: (scope: { row: SvcInfo }) => (
+                  <span>
+                    {scope.row.name}
+                    {svcProtected(scope.row.name) ? (
+                      <ElTag type="danger" size="small" style={{ marginLeft: '6px' }}>
+                        保护
+                      </ElTag>
+                    ) : null}
+                  </span>
+                ),
+              }}
+            </ElTableColumn>
             <ElTableColumn label="状态" width={120}>
               {{
                 default: (scope: { row: SvcInfo }) =>
@@ -113,10 +157,18 @@ export default defineComponent({
               {{
                 default: (scope: { row: SvcInfo }) => (
                   <span>
-                    <ElButton size="small" onClick={() => svc(scope.row.name, 'start')}>
+                    <ElButton
+                      size="small"
+                      disabled={svcProtected(scope.row.name)}
+                      onClick={() => svc(scope.row.name, 'start')}
+                    >
                       启动
                     </ElButton>
-                    <ElButton size="small" onClick={() => svc(scope.row.name, 'stop')}>
+                    <ElButton
+                      size="small"
+                      disabled={svcProtected(scope.row.name)}
+                      onClick={() => svc(scope.row.name, 'stop')}
+                    >
                       停止
                     </ElButton>
                   </span>
