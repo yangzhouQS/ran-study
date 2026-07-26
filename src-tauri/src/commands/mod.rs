@@ -9,6 +9,7 @@ pub mod schedule;
 pub mod terminal;
 pub mod dbadmin;
 pub mod redis_admin;
+pub mod logs;
 
 use crate::provider::registry::ProviderRegistry;
 use crate::repo::Repo;

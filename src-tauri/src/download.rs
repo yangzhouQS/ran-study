@@ -2,32 +2,85 @@ use crate::error::{RanError, RanResult};
 use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
-/// 下载文件到目标路径；progress 回调按累计/总字节触发
+const MAX_ATTEMPTS: u32 = 3;
+
+/// 下载文件到目标路径；支持代理(RAN_PROXY)、断点续传(Range)、失败重试
 pub async fn download(
     url: &str,
     dest: &Path,
     mut progress: impl FnMut(u64, u64) + Send + 'static,
     total_hint: u64,
 ) -> RanResult<u64> {
-    let client = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder();
+    let proxy_url = match std::env::var("RAN_PROXY") {
+        Ok(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+        _ => None,
+    };
+    if let Some(p) = &proxy_url {
+        if let Ok(proxy) = reqwest::Proxy::all(p) {
+            client_builder = client_builder.proxy(proxy);
+        }
+    }
+    let client = client_builder
         .build()
         .map_err(|e| RanError::Other(e.to_string()))?;
-    let resp = client
-        .get(url)
+
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
+        match download_once(&client, url, dest, &mut progress, total_hint).await {
+            Ok(n) => return Ok(n),
+            Err(_) if attempt < MAX_ATTEMPTS => {
+                tokio::time::sleep(Duration::from_millis(800)).await;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+async fn download_once(
+    client: &reqwest::Client,
+    url: &str,
+    dest: &Path,
+    progress: &mut (impl FnMut(u64, u64) + Send),
+    total_hint: u64,
+) -> RanResult<u64> {
+    let existing = tokio::fs::metadata(dest)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let req = if existing > 0 {
+        client
+            .get(url)
+            .header("Range", format!("bytes={existing}-"))
+    } else {
+        client.get(url)
+    };
+    let resp = req
         .send()
         .await
         .map_err(|e| RanError::Other(e.to_string()))?;
+    let partial = resp.status() == reqwest::StatusCode::PARTIAL_CONTENT;
     if !resp.status().is_success() {
         return Err(RanError::Other(format!("http {}", resp.status())));
     }
-    let total = total_hint.max(resp.content_length().unwrap_or(0));
+    let total = total_hint.max(resp.content_length().unwrap_or(0)) + if partial { existing } else { 0 };
+    let mut file = if partial {
+        tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(dest)
+            .await
+            .map_err(|e| RanError::Io(e.to_string()))?
+    } else {
+        tokio::fs::File::create(dest)
+            .await
+            .map_err(|e| RanError::Io(e.to_string()))?
+    };
+    let mut written: u64 = if partial { existing } else { 0 };
     let mut stream = resp.bytes_stream();
-    let mut file = tokio::fs::File::create(dest)
-        .await
-        .map_err(|e| RanError::Io(e.to_string()))?;
-    let mut written: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| RanError::Other(e.to_string()))?;
         file.write_all(&chunk)
@@ -36,6 +89,7 @@ pub async fn download(
         written += chunk.len() as u64;
         progress(written, total);
     }
+    file.flush().await.map_err(|e| RanError::Io(e.to_string()))?;
     Ok(written)
 }
 

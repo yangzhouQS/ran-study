@@ -37,9 +37,14 @@ impl SoftwareProvider for MysqlProvider {
         progress: ProgressCb,
     ) -> RanResult<SoftwareSpec> {
         let major = version.split('.').take(2).collect::<Vec<_>>().join(".");
-        let url = self
-            .manifest()
-            .download_url_template
+        let m = self.manifest();
+        let mirror_pref = std::env::var("RAN_MIRROR").unwrap_or_default();
+        let tmpl = if (mirror_pref == "tuna" || mirror_pref == "huawei") && !m.mirror.is_empty() {
+            m.mirror
+        } else {
+            m.download_url_template
+        };
+        let url = tmpl
             .replace("${major}", &major)
             .replace("${version}", version);
         let install_path = root.join("env").join("mysql").join(format!("mysql-{version}"));

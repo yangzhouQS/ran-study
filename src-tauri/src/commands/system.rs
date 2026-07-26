@@ -35,6 +35,19 @@ pub fn get_settings(state: State<'_, Arc<AppState>>) -> RanResult<Settings> {
     Ok(state.settings.lock().unwrap().clone())
 }
 
+#[tauri::command]
+pub fn update_settings(
+    state: State<'_, Arc<AppState>>,
+    mirror: String,
+    proxy: String,
+) -> RanResult<()> {
+    let mut s = state.settings.lock().unwrap();
+    s.mirror = mirror;
+    s.proxy = proxy;
+    s.save(&state.config_dir())?;
+    Ok(())
+}
+
 /// 切换根目录：写入引导指针 + 在新目录落 settings（重启后生效）
 #[tauri::command]
 pub fn set_root_dir(state: State<'_, Arc<AppState>>, root_dir: String) -> RanResult<()> {

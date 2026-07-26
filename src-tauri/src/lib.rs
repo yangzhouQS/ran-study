@@ -16,8 +16,11 @@ mod sysproc;
 mod task;
 mod terminal;
 mod redis_admin;
+mod logs;
 
-use commands::system::{get_settings, get_system_info, init_root, set_root_dir};
+use commands::system::{
+    get_settings, get_system_info, init_root, set_root_dir, update_settings,
+};
 use commands::task::{create_demo_task, list_tasks};
 use provider::mysql::MysqlProvider;
 use provider::redis::RedisProvider;
@@ -85,6 +88,7 @@ pub fn run() {
             get_system_info,
             init_root,
             get_settings,
+            update_settings,
             set_root_dir,
             list_tasks,
             create_demo_task,
@@ -93,6 +97,8 @@ pub fn run() {
             commands::software::install_software,
             commands::software::control_software,
             commands::software::uninstall_software,
+            commands::software::read_software_config,
+            commands::software::write_software_config,
             commands::node::node_provisioned,
             commands::node::known_node_versions,
             commands::node::node_versions_local,
@@ -118,6 +124,7 @@ pub fn run() {
             commands::sysproc::service_protected,
             commands::sysproc::list_ports,
             commands::monitor::get_system_stats,
+            commands::monitor::dashboard_summary,
             commands::monitor::list_monitor_history,
             commands::monitor::clear_monitor_history,
             commands::monitor::top_processes,
@@ -151,6 +158,8 @@ pub fn run() {
             commands::redis_admin::redis_run,
             commands::redis_admin::redis_run_remote,
             commands::redis_admin::redis_change_password,
+            commands::logs::list_log_files,
+            commands::logs::read_log_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
