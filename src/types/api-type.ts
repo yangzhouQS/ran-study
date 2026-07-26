@@ -91,6 +91,13 @@ export interface SvcInfo {
   display: string;
 }
 
+export interface PortInfo {
+  port: number;
+  pid: number;
+  name: string;
+  address: string;
+}
+
 export interface DiskInfo {
   name: string;
   mountPoint: string;

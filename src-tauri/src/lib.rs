@@ -116,6 +116,7 @@ pub fn run() {
             commands::sysproc::control_service,
             commands::sysproc::process_protected,
             commands::sysproc::service_protected,
+            commands::sysproc::list_ports,
             commands::monitor::get_system_stats,
             commands::monitor::list_monitor_history,
             commands::monitor::clear_monitor_history,

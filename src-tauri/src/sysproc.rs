@@ -21,6 +21,15 @@ pub struct SvcInfo {
     pub display: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortInfo {
+    pub port: u32,
+    pub pid: u32,
+    pub name: String,
+    pub address: String,
+}
+
 /// 进程列表（按 CPU 降序，上限 300）
 pub fn list_processes() -> Vec<ProcInfo> {
     let mut sys = sysinfo::System::new_all();
@@ -177,6 +186,61 @@ pub fn control_service(name: &str, action: &str) -> RanResult<()> {
     Ok(())
 }
 
+// ---------- 端口检测 ----------
+/// 解析 netstat -ano 文本中的 LISTENING 行 → (port, pid, address)，按端口去重
+pub fn parse_listening(text: &str) -> Vec<(u32, u32, String)> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 || !parts.contains(&"LISTENING") {
+            continue;
+        }
+        let local = parts[1];
+        let pid: u32 = parts[parts.len() - 1].parse().unwrap_or(0);
+        let Some(idx) = local.rfind(':') else {
+            continue;
+        };
+        let port: u32 = local[idx + 1..].parse().unwrap_or(0);
+        if port == 0 || pid == 0 {
+            continue;
+        }
+        if !seen.insert(port) {
+            continue;
+        }
+        out.push((port, pid, local[..idx].to_string()));
+    }
+    out.sort_by_key(|(p, _, _)| *p);
+    out
+}
+
+/// 列出所有监听端口及其占用进程
+pub fn list_listening_ports() -> RanResult<Vec<PortInfo>> {
+    let out = Command::new("netstat")
+        .args(["-ano"])
+        .output()
+        .map_err(|e| RanError::Other(e.to_string()))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let entries = parse_listening(&text);
+    let mut sys = sysinfo::System::new_all();
+    let res = entries
+        .into_iter()
+        .map(|(port, pid, address)| {
+            let name = sys
+                .process(sysinfo::Pid::from_u32(pid))
+                .map(|p| p.name().to_string_lossy().to_string())
+                .unwrap_or_default();
+            PortInfo {
+                port,
+                pid,
+                name,
+                address,
+            }
+        })
+        .collect();
+    Ok(res)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +267,19 @@ mod tests {
         assert!(is_protected_service("RpcSs"));
         assert!(is_protected_service("winmgmt"));
         assert!(!is_protected_service("MySQL80"));
+    }
+
+    #[test]
+    fn parse_listening_extracts_port_pid() {
+        let text = "\r\n活动连接\r\n\r\n  协议    本地地址          外部地址        状态           PID\r\n  TCP    127.0.0.1:5354         0.0.0.0:0              LISTENING       1068\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       1248\r\n  TCP    [::]:445              [::]:0                 LISTENING       4\r\n  TCP    192.168.1.5:50123      10.0.0.1:443           ESTABLISHED     900\r\n";
+        let v = parse_listening(text);
+        // 5354, 135, 445 (50123 是 ESTABLISHED 不算；445 的 IPv4 与 IPv6 去重为一条)
+        let ports: Vec<u32> = v.iter().map(|(p, _, _)| *p).collect();
+        assert!(ports.contains(&5354));
+        assert!(ports.contains(&135));
+        assert!(ports.contains(&445));
+        assert!(!ports.contains(&50123));
+        let pid5354 = v.iter().find(|(p, _, _)| *p == 5354).map(|(_, pi, _)| *pi);
+        assert_eq!(pid5354, Some(1068));
     }
 }

@@ -1,35 +1,71 @@
 import { defineComponent } from 'vue';
 import {
-  ElContainer,
   ElAside,
+  ElContainer,
   ElHeader,
+  ElIcon,
   ElMain,
   ElMenu,
   ElMenuItem,
+  ElTag,
 } from 'element-plus';
+import {
+  Box,
+  Coin,
+  Cpu,
+  DataLine,
+  Histogram,
+  HomeFilled,
+  List,
+  Monitor,
+  Operation,
+  Timer,
+} from '@element-plus/icons-vue';
 import { RouterView } from 'vue-router';
+
+interface MenuEntry {
+  index: string;
+  label: string;
+  Icon: ReturnType<typeof defineComponent>;
+}
+
+const MENU: MenuEntry[] = [
+  { index: '/dashboard', label: '首页', Icon: HomeFilled },
+  { index: '/software', label: '软件管理', Icon: Box },
+  { index: '/database', label: '数据库', Icon: Coin },
+  { index: '/node-version', label: 'Node 版本', Icon: Cpu },
+  { index: '/pm2-app', label: 'PM2 应用', Icon: Operation },
+  { index: '/process-service', label: '进程与服务', Icon: Histogram },
+  { index: '/monitor', label: '监控', Icon: DataLine },
+  { index: '/schedule', label: '计划任务', Icon: Timer },
+  { index: '/terminal', label: '终端', Icon: Monitor },
+  { index: '/task-queue', label: '任务队列', Icon: List },
+];
 
 export default defineComponent({
   name: 'AppLayout',
   render() {
     return (
       <ElContainer style={{ height: '100vh', overflow: 'hidden' }}>
-        <ElAside width="200px" style={{ height: '100vh', overflowY: 'auto' }}>
+        <ElAside width="208px" style={{ height: '100vh', overflowY: 'auto' }}>
           <ElMenu router defaultActive="/dashboard">
-            <ElMenuItem index="/dashboard">首页</ElMenuItem>
-            <ElMenuItem index="/software">软件管理</ElMenuItem>
-            <ElMenuItem index="/database">数据库</ElMenuItem>
-            <ElMenuItem index="/node-version">Node 版本</ElMenuItem>
-            <ElMenuItem index="/pm2-app">PM2 应用</ElMenuItem>
-            <ElMenuItem index="/process-service">进程与服务</ElMenuItem>
-            <ElMenuItem index="/monitor">监控</ElMenuItem>
-            <ElMenuItem index="/schedule">计划任务</ElMenuItem>
-            <ElMenuItem index="/terminal">终端</ElMenuItem>
-            <ElMenuItem index="/task-queue">任务队列</ElMenuItem>
+            {MENU.map(({ index, label, Icon }) => (
+              <ElMenuItem index={index}>
+                <ElIcon>
+                  <Icon />
+                </ElIcon>
+                <span>{label}</span>
+              </ElMenuItem>
+            ))}
           </ElMenu>
         </ElAside>
         <ElContainer style={{ height: '100vh' }}>
-          <ElHeader>ran-study</ElHeader>
+          <ElHeader>
+            <div class="app-title">ran-study · 软件管理</div>
+            <ElTag size="small" effect="dark" type="info">
+              v0.1.0
+            </ElTag>
+          </ElHeader>
           <ElMain style={{ overflowY: 'auto' }}>
             <RouterView />
           </ElMain>

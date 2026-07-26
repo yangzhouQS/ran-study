@@ -1,5 +1,5 @@
 use crate::error::RanResult;
-use crate::sysproc::{self, ProcInfo, SvcInfo};
+use crate::sysproc::{self, PortInfo, ProcInfo, SvcInfo};
 
 #[tauri::command]
 pub fn list_processes() -> RanResult<Vec<ProcInfo>> {
@@ -29,4 +29,9 @@ pub fn process_protected(name: String) -> bool {
 #[tauri::command]
 pub fn service_protected(name: String) -> bool {
     sysproc::is_protected_service(&name)
+}
+
+#[tauri::command]
+pub fn list_ports() -> RanResult<Vec<PortInfo>> {
+    sysproc::list_listening_ports()
 }

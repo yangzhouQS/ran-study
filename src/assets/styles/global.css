@@ -41,13 +41,49 @@ body {
   padding: 16px;
 }
 .el-header {
-  padding: 0 16px;
-  line-height: 50px;
-  height: 50px !important;
-  border-bottom: 1px solid #e6e8eb;
-  font-weight: 600;
+  padding: 0 20px;
+  height: 52px !important;
+  line-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #1f6feb 0%, #4c8dff 100%);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(31, 111, 235, 0.25);
+}
+.app-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 .el-aside {
   border-right: 1px solid #e6e8eb;
   background: #fff;
+}
+.el-menu {
+  border-right: none !important;
+}
+.el-menu-item {
+  margin: 4px 8px;
+  border-radius: 8px;
+  height: 44px;
+  line-height: 44px;
+}
+.el-menu-item .el-icon {
+  font-size: 18px;
+  margin-right: 10px;
+}
+.el-menu-item.is-active {
+  background: linear-gradient(90deg, #1f6feb, #4c8dff);
+  color: #fff !important;
+  font-weight: 600;
+}
+.el-menu-item.is-active .el-icon {
+  color: #fff;
+}
+.el-menu-item:hover:not(.is-active) {
+  background: #eef3fb;
+}
+.el-card {
+  border-radius: 10px;
 }
