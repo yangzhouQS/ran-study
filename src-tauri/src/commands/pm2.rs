@@ -24,6 +24,16 @@ pub fn pm2_list(state: State<'_, Arc<AppState>>) -> RanResult<Vec<Pm2Process>> {
 }
 
 #[tauri::command]
+pub fn pm2_logs(
+    state: State<'_, Arc<AppState>>,
+    name: String,
+    kind: String,
+    lines: usize,
+) -> RanResult<String> {
+    pm2::read_logs(&state.root, &name, &kind, lines)
+}
+
+#[tauri::command]
 pub fn pm2_apps(state: State<'_, Arc<AppState>>) -> RanResult<Vec<Pm2AppRow>> {
     state.repo.list_pm2_apps()
 }

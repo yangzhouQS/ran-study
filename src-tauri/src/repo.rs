@@ -41,6 +41,8 @@ impl Repo {
                 trigger TEXT, enabled INTEGER, log_path TEXT)",
             "CREATE TABLE IF NOT EXISTS mysql_secrets(
                 software_id INTEGER PRIMARY KEY, root_password TEXT)",
+            "CREATE TABLE IF NOT EXISTS monitor_samples(
+                ts INTEGER PRIMARY KEY, cpu REAL, mem_used INTEGER, mem_total INTEGER, procs TEXT)",
         ] {
             conn.execute(sql, [])?;
         }
@@ -288,6 +290,118 @@ impl Repo {
              ON CONFLICT(software_id) DO UPDATE SET root_password=excluded.root_password",
             rusqlite::params![software_id, pw],
         )?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorSampleRow {
+    pub ts: i64,
+    pub cpu: f32,
+    pub mem_used: u64,
+    pub mem_total: u64,
+    pub procs: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstanceRow {
+    #[serde(default)]
+    pub id: i64,
+    pub software_id: i64,
+    pub name: String,
+    pub port: i64,
+    pub data_path: String,
+    pub config_path: String,
+    #[serde(default)]
+    pub service_name: Option<String>,
+    pub status: String,
+}
+
+impl Repo {
+    pub fn insert_monitor_sample(
+        &self,
+        ts: i64,
+        cpu: f32,
+        mem_used: u64,
+        mem_total: u64,
+        procs: &str,
+    ) -> RanResult<()> {
+        self.conn.lock().unwrap().execute(
+            "INSERT OR IGNORE INTO monitor_samples(ts,cpu,mem_used,mem_total,procs) VALUES (?1,?2,?3,?4,?5)",
+            rusqlite::params![ts, cpu, mem_used, mem_total, procs],
+        )?;
+        Ok(())
+    }
+    pub fn list_monitor_since(&self, since_ts: i64) -> RanResult<Vec<MonitorSampleRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT ts,cpu,mem_used,mem_total,procs FROM monitor_samples WHERE ts>=?1 ORDER BY ts",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![since_ts], |r| {
+            Ok(MonitorSampleRow {
+                ts: r.get(0)?,
+                cpu: r.get(1)?,
+                mem_used: r.get(2)?,
+                mem_total: r.get(3)?,
+                procs: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+    pub fn clear_monitor(&self) -> RanResult<()> {
+        self.conn.lock().unwrap().execute("DELETE FROM monitor_samples", [])?;
+        Ok(())
+    }
+    pub fn delete_monitor_before(&self, ts: i64) -> RanResult<()> {
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM monitor_samples WHERE ts<?1", rusqlite::params![ts])?;
+        Ok(())
+    }
+
+    pub fn insert_instance(&self, row: &InstanceRow) -> RanResult<i64> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "INSERT INTO instances(software_id,name,port,config_path,pid,status)
+             VALUES (?1,?2,?3,?4,0,?5)",
+            rusqlite::params![row.software_id, row.name, row.port, row.config_path, "stopped"],
+        )?;
+        Ok(c.last_insert_rowid())
+    }
+    pub fn list_instances(&self, software_id: i64) -> RanResult<Vec<InstanceRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT id,software_id,name,port,config_path,status FROM instances WHERE software_id=?1")?;
+        let rows = stmt.query_map(rusqlite::params![software_id], |r| {
+            Ok(InstanceRow {
+                id: r.get(0)?,
+                software_id: r.get(1)?,
+                name: r.get(2)?,
+                port: r.get(3)?,
+                data_path: String::new(),
+                config_path: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                service_name: None,
+                status: r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+    pub fn delete_instance(&self, id: i64) -> RanResult<()> {
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM instances WHERE id=?1", rusqlite::params![id])?;
         Ok(())
     }
 }

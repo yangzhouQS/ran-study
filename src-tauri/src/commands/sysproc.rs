@@ -7,8 +7,8 @@ pub fn list_processes() -> RanResult<Vec<ProcInfo>> {
 }
 
 #[tauri::command]
-pub fn kill_process(pid: u32) -> RanResult<()> {
-    sysproc::kill_process(pid)
+pub fn kill_process(pid: u32, name: String) -> RanResult<()> {
+    sysproc::kill_process(pid, &name)
 }
 
 #[tauri::command]

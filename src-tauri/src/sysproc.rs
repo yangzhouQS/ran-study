@@ -47,7 +47,68 @@ pub fn list_processes() -> Vec<ProcInfo> {
     v
 }
 
-pub fn kill_process(pid: u32) -> RanResult<()> {
+/// 受保护进程（关键系统进程 + ran 自身）
+const PROTECTED_PROCESSES: &[&str] = &[
+    "ran-study",
+    "ran_study",
+    "ran-sidecar",
+    "csrss",
+    "lsass",
+    "smss",
+    "wininit",
+    "winlogon",
+    "services",
+    "system",
+    "registry",
+    "fontdrvhost",
+    "dwm",
+];
+
+/// 受保护服务（停止会导致系统异常的关键 Windows 服务）
+const PROTECTED_SERVICES: &[&str] = &[
+    "audiosrv",
+    "audioendpointbuilder",
+    "bits",
+    "cryptsvc",
+    "dcomlaunch",
+    "dhcp",
+    "dnscache",
+    "eventlog",
+    "eventsystem",
+    "lsm",
+    "lanmanserver",
+    "lanmanworkstation",
+    "netman",
+    "plugplay",
+    "power",
+    "profsvc",
+    "rpceptmapper",
+    "rpcss",
+    "samss",
+    "schedule",
+    "sens",
+    "spooler",
+    "systemeventsbroker",
+    "usermanager",
+    "winmgmt",
+    "wuauserv",
+];
+
+pub fn is_protected_process(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    let n = n.trim_end_matches(".exe");
+    PROTECTED_PROCESSES.iter().any(|p| n == *p)
+}
+
+pub fn is_protected_service(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    PROTECTED_SERVICES.iter().any(|p| n == *p)
+}
+
+pub fn kill_process(pid: u32, name: &str) -> RanResult<()> {
+    if is_protected_process(name) {
+        return Err(RanError::Other(format!("{name} 受保护，禁止结束")));
+    }
     let st = Command::new("taskkill")
         .args(["/F", "/PID", &pid.to_string()])
         .status();
@@ -104,6 +165,9 @@ pub fn parse_services(text: &str) -> Vec<SvcInfo> {
 }
 
 pub fn control_service(name: &str, action: &str) -> RanResult<()> {
+    if is_protected_service(name) {
+        return Err(RanError::Other(format!("服务 {name} 受保护，禁止操作")));
+    }
     let verb = match action {
         "start" => "start",
         "stop" => "stop",
@@ -125,5 +189,19 @@ mod tests {
         assert_eq!(v[0].name, "ran-redis-7");
         assert_eq!(v[0].state, "running");
         assert_eq!(v[1].state, "stopped");
+    }
+
+    #[test]
+    fn protected_process_match() {
+        assert!(is_protected_process("lsass.exe"));
+        assert!(is_protected_process("ran-study"));
+        assert!(!is_protected_process("chrome"));
+    }
+
+    #[test]
+    fn protected_service_match() {
+        assert!(is_protected_service("RpcSs"));
+        assert!(is_protected_service("winmgmt"));
+        assert!(!is_protected_service("MySQL80"));
     }
 }

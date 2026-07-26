@@ -15,6 +15,7 @@ mod settings;
 mod sysproc;
 mod task;
 mod terminal;
+mod redis_admin;
 
 use commands::system::{get_settings, get_system_info, init_root, set_root_dir};
 use commands::task::{create_demo_task, list_tasks};
@@ -24,6 +25,7 @@ use provider::registry::ProviderRegistry;
 use repo::Repo;
 use settings::Settings;
 use std::sync::{Arc, Mutex};
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -54,6 +56,31 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(state)
+        .setup(|app| {
+            // 后台监控采样：每 10s 落库 + 清理 7 天前
+            let st: tauri::State<'_, Arc<commands::AppState>> =
+                app.state::<Arc<commands::AppState>>();
+            let app_state = st.inner().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(10));
+                loop {
+                    tick.tick().await;
+                    let (stats, procs) = monitor::sample_with_procs();
+                    let ts = chrono::Utc::now().timestamp();
+                    let procs_json = serde_json::to_string(&procs).unwrap_or_default();
+                    let _ = app_state.repo.insert_monitor_sample(
+                        ts,
+                        stats.cpu,
+                        stats.mem_used,
+                        stats.mem_total,
+                        &procs_json,
+                    );
+                    let cutoff = ts - 7 * 24 * 3600;
+                    let _ = app_state.repo.delete_monitor_before(cutoff);
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             init_root,
@@ -88,11 +115,16 @@ pub fn run() {
             commands::sysproc::list_services,
             commands::sysproc::control_service,
             commands::monitor::get_system_stats,
+            commands::monitor::list_monitor_history,
+            commands::monitor::clear_monitor_history,
+            commands::monitor::top_processes,
             commands::schedule::list_scheduled,
             commands::schedule::create_scheduled,
             commands::schedule::run_scheduled,
             commands::schedule::toggle_scheduled,
             commands::schedule::delete_scheduled,
+            commands::schedule::export_scheduled,
+            commands::schedule::import_scheduled,
             commands::terminal::open_terminal,
             commands::terminal::write_terminal,
             commands::terminal::close_terminal,
@@ -102,6 +134,20 @@ pub fn run() {
             commands::dbadmin::backup_mysql,
             commands::dbadmin::import_mysql,
             commands::dbadmin::run_mysql_query,
+            commands::dbadmin::list_mysql_instances,
+            commands::dbadmin::create_mysql_instance,
+            commands::dbadmin::start_mysql_instance,
+            commands::dbadmin::stop_mysql_instance,
+            commands::dbadmin::status_mysql_instance,
+            commands::dbadmin::delete_mysql_instance,
+            commands::pm2::pm2_logs,
+            commands::redis_admin::redis_list_keys,
+            commands::redis_admin::redis_add_key,
+            commands::redis_admin::redis_get_key,
+            commands::redis_admin::redis_del_key,
+            commands::redis_admin::redis_run,
+            commands::redis_admin::redis_run_remote,
+            commands::redis_admin::redis_change_password,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -172,6 +172,19 @@ pub fn resurrect(root: &Path) -> RanResult<()> {
     Ok(())
 }
 
+/// 读取某应用 pm2 日志尾 N 行（kind: "out" | "error"）
+pub fn read_logs(root: &Path, name: &str, kind: &str, lines: usize) -> RanResult<String> {
+    let log = pm2_home(root)
+        .join("logs")
+        .join(format!("{name}-{kind}.log"));
+    if !log.exists() {
+        return Ok(String::new());
+    }
+    let text = std::fs::read_to_string(&log)?;
+    let collected: Vec<&str> = text.lines().rev().take(lines).collect();
+    Ok(collected.into_iter().rev().collect::<Vec<_>>().join("\n"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
