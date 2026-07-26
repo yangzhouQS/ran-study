@@ -13,8 +13,8 @@ export default defineComponent({
   name: 'AppLayout',
   render() {
     return (
-      <ElContainer style={{ height: '100vh' }}>
-        <ElAside width="200px">
+      <ElContainer style={{ height: '100vh', overflow: 'hidden' }}>
+        <ElAside width="200px" style={{ height: '100vh', overflowY: 'auto' }}>
           <ElMenu router defaultActive="/dashboard">
             <ElMenuItem index="/dashboard">首页</ElMenuItem>
             <ElMenuItem index="/software">软件管理</ElMenuItem>
@@ -28,9 +28,9 @@ export default defineComponent({
             <ElMenuItem index="/task-queue">任务队列</ElMenuItem>
           </ElMenu>
         </ElAside>
-        <ElContainer>
+        <ElContainer style={{ height: '100vh' }}>
           <ElHeader>ran-study</ElHeader>
-          <ElMain>
+          <ElMain style={{ overflowY: 'auto' }}>
             <RouterView />
           </ElMain>
         </ElContainer>

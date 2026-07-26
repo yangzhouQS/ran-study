@@ -1,0 +1,53 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f7fa;
+  overflow: hidden; /* 整页不滚动，滚动交给左/右区域 */
+}
+
+#app {
+  height: 100%;
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c4c9d4;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8aebd;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 收窄 Element Plus 主区域默认内边距 */
+.el-main {
+  padding: 16px;
+}
+.el-header {
+  padding: 0 16px;
+  line-height: 50px;
+  height: 50px !important;
+  border-bottom: 1px solid #e6e8eb;
+  font-weight: 600;
+}
+.el-aside {
+  border-right: 1px solid #e6e8eb;
+  background: #fff;
+}
