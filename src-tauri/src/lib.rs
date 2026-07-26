@@ -103,6 +103,7 @@ pub fn run() {
             commands::software::control_software,
             commands::software::uninstall_software,
             commands::software::link_software,
+            commands::software::update_software,
             commands::software::read_software_config,
             commands::software::write_software_config,
             commands::node::node_provisioned,

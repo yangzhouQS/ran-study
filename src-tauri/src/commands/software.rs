@@ -150,6 +150,37 @@ pub fn link_software(
     Ok(id)
 }
 
+/// 编辑已登记软件的属性（bin/配置/端口/服务名/模式/版本/目录等）
+#[tauri::command]
+pub fn update_software(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    id: i64,
+    version: String,
+    install_path: String,
+    bin_path: String,
+    config_path: String,
+    data_path: String,
+    port: u16,
+    service_name: Option<String>,
+    run_mode: RunMode,
+) -> RanResult<()> {
+    state.repo.update_software_fields(
+        id,
+        &version,
+        &install_path,
+        &bin_path,
+        &config_path,
+        &data_path,
+        port,
+        service_name.as_deref(),
+        run_mode,
+    )?;
+    crate::logs::audit(&state.root, "update", &format!("software {id}"));
+    let _ = app.emit("software://changed", ());
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn control_software(
     state: State<'_, Arc<AppState>>,

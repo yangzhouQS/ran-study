@@ -148,6 +148,35 @@ impl Repo {
         Ok(())
     }
 
+    pub fn update_software_fields(
+        &self,
+        id: i64,
+        version: &str,
+        install_path: &str,
+        bin_path: &str,
+        config_path: &str,
+        data_path: &str,
+        port: u16,
+        service_name: Option<&str>,
+        run_mode: RunMode,
+    ) -> RanResult<()> {
+        self.conn.lock().unwrap().execute(
+            "UPDATE software SET version=?1, install_path=?2, bin_path=?3, config_path=?4, data_path=?5, port=?6, service_name=?7, run_mode=?8 WHERE id=?9",
+            rusqlite::params![
+                version,
+                install_path,
+                bin_path,
+                config_path,
+                data_path,
+                port,
+                service_name.unwrap_or(""),
+                run_mode_str(run_mode),
+                id
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn delete_software(&self, id: i64) -> RanResult<()> {
         self.conn
             .lock()

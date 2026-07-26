@@ -20,6 +20,7 @@ import {
   listCatalog,
   readSoftwareConfig,
   uninstallSoftware,
+  updateSoftware,
   writeSoftwareConfig,
 } from '@/api/software-api';
 import { getSystemInfo } from '@/api/system-api';
@@ -46,6 +47,19 @@ export default defineComponent({
     const sel = ref<Record<string, Sel>>({});
     const cfg = reactive({ visible: false, id: 0, name: '', content: '' });
     const linkVisible = ref(false);
+    const editVisible = ref(false);
+    const editForm = reactive({
+      id: 0,
+      provider: '',
+      version: '',
+      installPath: '',
+      binPath: '',
+      configPath: '',
+      dataPath: '',
+      port: '',
+      serviceName: '',
+      mode: 'Portable' as RunMode,
+    });
     const linkForm = reactive({
       provider: 'mysql',
       installPath: '',
@@ -144,6 +158,52 @@ export default defineComponent({
       if (typeof f === 'string') linkForm.configPath = f;
     };
 
+    const openEdit = (row: InstalledSoftware) => {
+      editForm.id = row.id;
+      editForm.provider = row.provider;
+      editForm.version = row.version;
+      editForm.installPath = row.installPath;
+      editForm.binPath = row.binPath;
+      editForm.configPath = row.configPath;
+      editForm.dataPath = row.dataPath;
+      editForm.port = String(row.port);
+      editForm.serviceName = row.serviceName ?? '';
+      editForm.mode = row.runMode;
+      editVisible.value = true;
+    };
+    const onEdit = async () => {
+      await updateSoftware({
+        id: editForm.id,
+        version: editForm.version,
+        installPath: editForm.installPath,
+        binPath: editForm.binPath,
+        configPath: editForm.configPath,
+        dataPath: editForm.dataPath,
+        port: editForm.port ? Number(editForm.port) : 0,
+        serviceName: editForm.serviceName || null,
+        runMode: editForm.mode,
+      });
+      ElMessage.success('已更新');
+      editVisible.value = false;
+      await refresh();
+    };
+    const pickEditInstall = async () => {
+      const d = await open({ directory: true, multiple: false });
+      if (typeof d === 'string') editForm.installPath = d;
+    };
+    const pickEditData = async () => {
+      const d = await open({ directory: true, multiple: false });
+      if (typeof d === 'string') editForm.dataPath = d;
+    };
+    const pickEditBin = async () => {
+      const f = await open({ directory: false, multiple: false });
+      if (typeof f === 'string') editForm.binPath = f;
+    };
+    const pickEditConfig = async () => {
+      const f = await open({ directory: false, multiple: false });
+      if (typeof f === 'string') editForm.configPath = f;
+    };
+
     return () => (
       <div>
         <ElAlert
@@ -224,7 +284,7 @@ export default defineComponent({
           <ElTableColumn prop="version" label="版本" width={140} />
           <ElTableColumn prop="runMode" label="模式" width={100} />
           <ElTableColumn prop="port" label="端口" width={90} />
-          <ElTableColumn label="操作" width={320}>
+          <ElTableColumn label="操作" width={400}>
             {{
               default: (scope: { row: InstalledSoftware }) => (
                 <span>
@@ -236,6 +296,9 @@ export default defineComponent({
                   </ElButton>
                   <ElButton size="small" onClick={() => openConfig(scope.row)}>
                     配置
+                  </ElButton>
+                  <ElButton size="small" type="warning" onClick={() => openEdit(scope.row)}>
+                    编辑
                   </ElButton>
                   <ElButton type="danger" size="small" onClick={() => rm(scope.row.id)}>
                     卸载
@@ -419,6 +482,114 @@ export default defineComponent({
           <div style={{ textAlign: 'right' }}>
             <ElButton size="small" type="primary" onClick={onLink}>
               接入
+            </ElButton>
+          </div>
+        </ElDialog>
+
+        <ElDialog
+          title={`编辑 - ${editForm.provider}`}
+          modelValue={editVisible.value}
+          onUpdate:modelValue={(v: boolean) => {
+            editVisible.value = v;
+          }}
+          width="640px"
+        >
+          <ElForm labelWidth="100">
+            <ElFormItem label="版本">
+              <ElInput
+                modelValue={editForm.version}
+                onInput={(v: string) => {
+                  editForm.version = v;
+                }}
+              />
+            </ElFormItem>
+            <ElFormItem label="安装目录">
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={editForm.installPath}
+                  onInput={(v: string) => {
+                    editForm.installPath = v;
+                  }}
+                />
+                <ElButton size="small" onClick={pickEditInstall}>
+                  选择
+                </ElButton>
+              </div>
+            </ElFormItem>
+            <ElFormItem label="可执行文件">
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={editForm.binPath}
+                  onInput={(v: string) => {
+                    editForm.binPath = v;
+                  }}
+                />
+                <ElButton size="small" onClick={pickEditBin}>
+                  选择
+                </ElButton>
+              </div>
+            </ElFormItem>
+            <ElFormItem label="配置文件">
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={editForm.configPath}
+                  onInput={(v: string) => {
+                    editForm.configPath = v;
+                  }}
+                />
+                <ElButton size="small" onClick={pickEditConfig}>
+                  选择
+                </ElButton>
+              </div>
+            </ElFormItem>
+            <ElFormItem label="数据目录">
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={editForm.dataPath}
+                  onInput={(v: string) => {
+                    editForm.dataPath = v;
+                  }}
+                  placeholder="PG data 目录等"
+                />
+                <ElButton size="small" onClick={pickEditData}>
+                  选择
+                </ElButton>
+              </div>
+            </ElFormItem>
+            <ElFormItem label="端口">
+              <ElInput
+                modelValue={editForm.port}
+                onInput={(v: string) => {
+                  editForm.port = v;
+                }}
+              />
+            </ElFormItem>
+            <ElFormItem label="模式">
+              <ElSelect
+                modelValue={editForm.mode}
+                onChange={(v: RunMode) => {
+                  editForm.mode = v;
+                }}
+                size="small"
+                style={{ width: '160px' }}
+              >
+                <ElOption label="服务" value="Service" />
+                <ElOption label="便携进程" value="Portable" />
+              </ElSelect>
+            </ElFormItem>
+            <ElFormItem label="服务名">
+              <ElInput
+                modelValue={editForm.serviceName}
+                onInput={(v: string) => {
+                  editForm.serviceName = v;
+                }}
+                placeholder="服务模式必填"
+              />
+            </ElFormItem>
+          </ElForm>
+          <div style={{ textAlign: 'right' }}>
+            <ElButton size="small" type="primary" onClick={onEdit}>
+              保存
             </ElButton>
           </div>
         </ElDialog>

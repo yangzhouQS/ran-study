@@ -21,6 +21,17 @@ export const linkSoftware = (params: {
   serviceName?: string;
   runMode: RunMode;
 }) => invoke<number>('link_software', params);
+export const updateSoftware = (params: {
+  id: number;
+  version: string;
+  installPath: string;
+  binPath: string;
+  configPath: string;
+  dataPath: string;
+  port: number;
+  serviceName: string | null;
+  runMode: RunMode;
+}) => invoke<void>('update_software', params);
 export const controlSoftware = (id: number, action: 'start' | 'stop' | 'status') =>
   invoke<RunStatus>('control_software', { id, action });
 export const uninstallSoftware = (id: number) => invoke<void>('uninstall_software', { id });
