@@ -107,6 +107,8 @@ fn main() {
         ("service_install", _) => install_sc_generic(&a, &svc),
         ("service_remove", "nssm") => remove_nssm(&svc),
         ("service_remove", _) => remove_sc(&svc),
+        ("service_start", _) => status_code(Command::new("sc").args(["start", &svc]).status()),
+        ("service_stop", _) => status_code(Command::new("sc").args(["stop", &svc]).status()),
         _ => {
             eprintln!("ran-sidecar: unknown op/kind: {op}/{kind}");
             2

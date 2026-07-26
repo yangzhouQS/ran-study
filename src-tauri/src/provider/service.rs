@@ -57,17 +57,17 @@ pub fn sc_start(svc: &str) -> RanResult<()> {
     );
     let lower = text.to_ascii_lowercase();
     if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
-        // 权限不足等原因，经 UAC 提升后重试
-        let st = runas::Command::new("sc")
-            .arg("start")
-            .arg(svc)
-            .status()
-            .map_err(|e| RanError::Other(format!("sc start {svc} 提升失败: {e}")))?;
-        if !st.success() {
-            return Err(RanError::Other(format!(
-                "sc start {svc} 失败:\n{}",
-                text.trim()
-            )));
+        // 权限不足，经 sidecar 提升后重试（触发 UAC）
+        if let Ok(sc) = crate::elevation::sidecar_path() {
+            let args = vec![
+                "--op".into(),
+                "service_start".into(),
+                "--svc".into(),
+                svc.into(),
+            ];
+            crate::elevation::run_elevated(sc.to_str().unwrap(), &args)?;
+        } else {
+            return Err(RanError::Other(format!("sc start {svc} 失败:\n{}", text.trim())));
         }
     }
     Ok(())
@@ -84,16 +84,16 @@ pub fn sc_stop(svc: &str) -> RanResult<()> {
     );
     let lower = text.to_ascii_lowercase();
     if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
-        let st = runas::Command::new("sc")
-            .arg("stop")
-            .arg(svc)
-            .status()
-            .map_err(|e| RanError::Other(format!("sc stop {svc} 提升失败: {e}")))?;
-        if !st.success() {
-            return Err(RanError::Other(format!(
-                "sc stop {svc} 失败:\n{}",
-                text.trim()
-            )));
+        if let Ok(sc) = crate::elevation::sidecar_path() {
+            let args = vec![
+                "--op".into(),
+                "service_stop".into(),
+                "--svc".into(),
+                svc.into(),
+            ];
+            crate::elevation::run_elevated(sc.to_str().unwrap(), &args)?;
+        } else {
+            return Err(RanError::Other(format!("sc stop {svc} 失败:\n{}", text.trim())));
         }
     }
     Ok(())
