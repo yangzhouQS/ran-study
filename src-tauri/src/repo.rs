@@ -63,7 +63,7 @@ impl Repo {
     }
 
     pub fn insert_software(&self, spec: &SoftwareSpec) -> RanResult<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         conn.execute(
             "INSERT INTO software(type,version,install_path,data_path,run_mode,service_name,status,is_active,bin_path,config_path,port,linked)
              VALUES (?1,?2,?3,?4,?5,?6,?7,1,?8,?9,?10,?11)",
@@ -85,7 +85,7 @@ impl Repo {
     }
 
     pub fn list_software(&self) -> RanResult<Vec<SoftwareSpec>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id,type,version,install_path,data_path,run_mode,service_name,bin_path,config_path,port,linked FROM software",
         )?;
@@ -141,7 +141,7 @@ impl Repo {
     }
 
     pub fn update_status(&self, id: i64, status: &str) -> RanResult<()> {
-        self.conn.lock().unwrap().execute(
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "UPDATE software SET status=?1 WHERE id=?2",
             rusqlite::params![status, id],
         )?;
@@ -160,7 +160,7 @@ impl Repo {
         service_name: Option<&str>,
         run_mode: RunMode,
     ) -> RanResult<()> {
-        self.conn.lock().unwrap().execute(
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "UPDATE software SET version=?1, install_path=?2, bin_path=?3, config_path=?4, data_path=?5, port=?6, service_name=?7, run_mode=?8 WHERE id=?9",
             rusqlite::params![
                 version,
@@ -186,7 +186,7 @@ impl Repo {
     }
 
     pub fn insert_pm2_app(&self, a: &Pm2AppRow) -> RanResult<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         c.execute(
             "INSERT INTO pm2_apps(name,script,cwd,node_version,env_json,instances,log_path,autostart,status)
              VALUES (?1,?2,?3,?4,?5,1,'',?6,?7)",
@@ -204,7 +204,7 @@ impl Repo {
     }
 
     pub fn list_pm2_apps(&self) -> RanResult<Vec<Pm2AppRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id,name,script,cwd,node_version,env_json,autostart,status FROM pm2_apps",
         )?;
@@ -302,7 +302,7 @@ pub struct ScheduledTaskRow {
 
 impl Repo {
     pub fn insert_scheduled(&self, t: &ScheduledTaskRow) -> RanResult<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         c.execute(
             "INSERT INTO scheduled_tasks(name,command,trigger,enabled,log_path)
              VALUES (?1,?2,?3,?4,'')",
@@ -312,7 +312,7 @@ impl Repo {
     }
 
     pub fn list_scheduled(&self) -> RanResult<Vec<ScheduledTaskRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt =
             conn.prepare("SELECT id,name,command,trigger,enabled FROM scheduled_tasks")?;
         let rows = stmt.query_map([], |r| {
@@ -332,7 +332,7 @@ impl Repo {
     }
 
     pub fn delete_scheduled(&self, id: i64) -> RanResult<()> {
-        self.conn.lock().unwrap().execute(
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "DELETE FROM scheduled_tasks WHERE id=?1",
             rusqlite::params![id],
         )?;
@@ -340,7 +340,7 @@ impl Repo {
     }
 
     pub fn get_root_pw(&self, software_id: i64) -> RanResult<String> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let pw: Option<String> = conn
             .query_row(
                 "SELECT root_password FROM mysql_secrets WHERE software_id=?1",
@@ -352,7 +352,7 @@ impl Repo {
     }
 
     pub fn set_root_pw(&self, software_id: i64, pw: &str) -> RanResult<()> {
-        self.conn.lock().unwrap().execute(
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "INSERT INTO mysql_secrets(software_id, root_password) VALUES (?1,?2)
              ON CONFLICT(software_id) DO UPDATE SET root_password=excluded.root_password",
             rusqlite::params![software_id, pw],
@@ -413,14 +413,14 @@ impl Repo {
         mem_total: u64,
         procs: &str,
     ) -> RanResult<()> {
-        self.conn.lock().unwrap().execute(
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "INSERT OR IGNORE INTO monitor_samples(ts,cpu,mem_used,mem_total,procs) VALUES (?1,?2,?3,?4,?5)",
             rusqlite::params![ts, cpu, mem_used, mem_total, procs],
         )?;
         Ok(())
     }
     pub fn list_monitor_since(&self, since_ts: i64) -> RanResult<Vec<MonitorSampleRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT ts,cpu,mem_used,mem_total,procs FROM monitor_samples WHERE ts>=?1 ORDER BY ts",
         )?;
@@ -440,7 +440,7 @@ impl Repo {
         Ok(out)
     }
     pub fn clear_monitor(&self) -> RanResult<()> {
-        self.conn.lock().unwrap().execute("DELETE FROM monitor_samples", [])?;
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute("DELETE FROM monitor_samples", [])?;
         Ok(())
     }
     pub fn delete_monitor_before(&self, ts: i64) -> RanResult<()> {
@@ -452,7 +452,7 @@ impl Repo {
     }
 
     pub fn insert_instance(&self, row: &InstanceRow) -> RanResult<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         c.execute(
             "INSERT INTO instances(software_id,name,port,config_path,pid,status)
              VALUES (?1,?2,?3,?4,0,?5)",
@@ -461,7 +461,7 @@ impl Repo {
         Ok(c.last_insert_rowid())
     }
     pub fn list_instances(&self, software_id: i64) -> RanResult<Vec<InstanceRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt =
             conn.prepare("SELECT id,software_id,name,port,config_path,status FROM instances WHERE software_id=?1")?;
         let rows = stmt.query_map(rusqlite::params![software_id], |r| {
@@ -491,7 +491,7 @@ impl Repo {
     }
 
     pub fn insert_custom_app(&self, row: &CustomAppRow) -> RanResult<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         c.execute(
             "INSERT INTO custom_apps(name,exe,args,cwd,service_name,pid,status)
              VALUES (?1,?2,?3,?4,?5,0,'stopped')",
@@ -506,7 +506,7 @@ impl Repo {
         Ok(c.last_insert_rowid())
     }
     pub fn list_custom_apps(&self) -> RanResult<Vec<CustomAppRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt =
             conn.prepare("SELECT id,name,exe,args,cwd,service_name,pid,status FROM custom_apps")?;
         let rows = stmt.query_map([], |r| {
@@ -529,7 +529,7 @@ impl Repo {
         Ok(out)
     }
     pub fn update_custom_app(&self, id: i64, pid: i64, status: &str) -> RanResult<()> {
-        self.conn.lock().unwrap().execute(
+        self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "UPDATE custom_apps SET pid=?1, status=?2 WHERE id=?3",
             rusqlite::params![pid, status, id],
         )?;
@@ -552,7 +552,7 @@ mod tests {
     fn open_creates_tables() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = Repo::open(tmp.path()).unwrap();
-        let conn = repo.conn.lock().unwrap();
+        let conn = repo.conn.lock().unwrap_or_else(|e| e.into_inner());
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('software','tasks','pm2_apps')",

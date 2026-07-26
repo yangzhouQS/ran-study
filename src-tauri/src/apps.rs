@@ -11,7 +11,7 @@ pub fn register_service(app: &CustomAppRow) -> RanResult<()> {
     };
     if let Ok(sc) = elevation::sidecar_path() {
         let args = elevation::build_nssm_install_args(svc, &app.exe, &app.args, &app.cwd);
-        let _ = elevation::run_elevated(sc.to_str().unwrap(), &args);
+        let _ = elevation::run_elevated(sc.to_str().unwrap_or(""), &args);
     }
     Ok(())
 }
@@ -22,7 +22,7 @@ pub fn unregister_service(app: &CustomAppRow) -> RanResult<()> {
     };
     if let Ok(sc) = elevation::sidecar_path() {
         let args = elevation::build_nssm_remove_args(svc);
-        let _ = elevation::run_elevated(sc.to_str().unwrap(), &args);
+        let _ = elevation::run_elevated(sc.to_str().unwrap_or(""), &args);
     }
     Ok(())
 }

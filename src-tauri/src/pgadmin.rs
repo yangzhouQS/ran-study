@@ -5,14 +5,12 @@ use std::process::{Command, Stdio};
 
 fn psql_exe(spec: &SoftwareSpec) -> PathBuf {
     spec.bin_path
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join(if cfg!(windows) { "psql.exe" } else { "psql" })
 }
 fn pg_dump_exe(spec: &SoftwareSpec) -> PathBuf {
     spec.bin_path
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join(if cfg!(windows) { "pg_dump.exe" } else { "pg_dump" })
 }
 

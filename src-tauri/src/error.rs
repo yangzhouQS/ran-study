@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::sync::Mutex;
 use thiserror::Error;
 
 #[derive(Debug, Error, Serialize)]
@@ -26,3 +27,8 @@ impl From<rusqlite::Error> for RanError {
 }
 
 pub type RanResult<T> = Result<T, RanError>;
+
+/// 安全获取 Mutex 锁（Mutex 中毒时恢复而非 panic）
+pub fn safe_lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}

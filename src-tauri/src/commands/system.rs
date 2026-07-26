@@ -26,13 +26,13 @@ pub fn get_system_info(state: State<'_, Arc<AppState>>) -> RanResult<SystemInfo>
 #[tauri::command]
 pub fn init_root(state: State<'_, Arc<AppState>>) -> RanResult<()> {
     paths::ensure_layout(&state.root)?;
-    *state.settings.lock().unwrap() = Settings::load(&state.config_dir())?;
+    *state.settings.lock().unwrap_or_else(|e| e.into_inner()) = Settings::load(&state.config_dir())?;
     Ok(())
 }
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, Arc<AppState>>) -> RanResult<Settings> {
-    Ok(state.settings.lock().unwrap().clone())
+    Ok(state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone())
 }
 
 #[tauri::command]
@@ -41,7 +41,7 @@ pub fn update_settings(
     mirror: String,
     proxy: String,
 ) -> RanResult<()> {
-    let mut s = state.settings.lock().unwrap();
+    let mut s = state.settings.lock().unwrap_or_else(|e| e.into_inner());
     s.mirror = mirror;
     s.proxy = proxy;
     s.save(&state.config_dir())?;
@@ -57,7 +57,7 @@ pub fn set_root_dir(state: State<'_, Arc<AppState>>, root_dir: String) -> RanRes
     }
     paths::ensure_layout(&path)?;
     crate::settings::write_bootstrap_root(&path)?;
-    let mut s = state.settings.lock().unwrap();
+    let mut s = state.settings.lock().unwrap_or_else(|e| e.into_inner());
     s.root_dir = root_dir;
     s.save(&path.join("config"))?;
     Ok(())

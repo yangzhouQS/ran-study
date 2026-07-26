@@ -81,7 +81,7 @@ pub fn open(app: AppHandle, cwd: &std::path::Path, map: &SessionMap) -> RanResul
 }
 
 pub fn write(map: &SessionMap, id: &str, data: &str) -> RanResult<()> {
-    let mut m = map.lock().unwrap();
+    let mut m = map.lock().unwrap_or_else(|e| e.into_inner());
     let s = m
         .get_mut(id)
         .ok_or_else(|| RanError::NotFound("terminal session".into()))?;
@@ -95,7 +95,7 @@ pub fn write(map: &SessionMap, id: &str, data: &str) -> RanResult<()> {
 }
 
 pub fn close(map: &SessionMap, id: &str) -> RanResult<()> {
-    if let Some(mut s) = map.lock().unwrap().remove(id) {
+    if let Some(mut s) = map.lock().unwrap_or_else(|e| e.into_inner()).remove(id) {
         let _ = s.child.kill();
         let _ = s.child.wait();
     }

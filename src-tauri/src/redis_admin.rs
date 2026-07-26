@@ -5,8 +5,7 @@ use std::process::Command;
 
 fn redis_cli(spec: &SoftwareSpec) -> PathBuf {
     spec.bin_path
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join(if cfg!(windows) { "redis-cli.exe" } else { "redis-cli" })
 }
 

@@ -42,7 +42,10 @@ pub fn run() {
     std::env::set_var("RAN_TOOLS_DIR", root.join("tools"));
 
     let repo = Repo::open(&root.join("config")).unwrap_or_else(|_| Repo {
-        conn: Mutex::new(rusqlite::Connection::open_in_memory().unwrap()),
+        conn: Mutex::new(
+            rusqlite::Connection::open_in_memory()
+                .expect("FATAL: cannot open in-memory sqlite"),
+        ),
     });
     let settings = Settings::load(&root.join("config")).unwrap_or_default();
 

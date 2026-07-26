@@ -6,14 +6,12 @@ use std::process::{Command, Stdio};
 
 fn mysql_exe(spec: &SoftwareSpec) -> PathBuf {
     spec.bin_path
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join(if cfg!(windows) { "mysql.exe" } else { "mysql" })
 }
 fn mysqldump_exe(spec: &SoftwareSpec) -> PathBuf {
     spec.bin_path
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join(if cfg!(windows) { "mysqldump.exe" } else { "mysqldump" })
 }
 
@@ -198,7 +196,7 @@ pub fn create_instance(spec: &SoftwareSpec, name: &str, port: u16, run_mode: Run
             };
             if let Ok(sc) = elevation::sidecar_path() {
                 let args = elevation::build_service_install_args(&fake);
-                let _ = elevation::run_elevated(sc.to_str().unwrap(), &args);
+                let _ = elevation::run_elevated(sc.to_str().unwrap_or(""), &args);
             }
         }
     }
@@ -265,7 +263,7 @@ pub fn delete_instance(spec: &SoftwareSpec, inst: &InstanceCreated) -> RanResult
                 service_name: Some(svc.clone()),
                 linked: false,
             };
-            let _ = elevation::run_elevated(sc.to_str().unwrap(), &elevation::build_service_remove_args(&fake));
+            let _ = elevation::run_elevated(sc.to_str().unwrap_or(""), &elevation::build_service_remove_args(&fake));
         }
     }
     if inst.data_path.exists() {

@@ -80,10 +80,10 @@ pub fn sc_stop(svc: &str) -> RanResult<()> {
 
 // ---- nssm（Redis 等无原生服务） ----
 pub fn nssm_start(svc: &str, tools_dir: &Path) -> RanResult<()> {
-    run_ignore(nssm_exe(tools_dir).to_str().unwrap(), &["start", svc])
+    run_ignore(nssm_exe(tools_dir).to_str().unwrap_or(""), &["start", svc])
 }
 pub fn nssm_stop(svc: &str, tools_dir: &Path) -> RanResult<()> {
-    run_ignore(nssm_exe(tools_dir).to_str().unwrap(), &["stop", svc])
+    run_ignore(nssm_exe(tools_dir).to_str().unwrap_or(""), &["stop", svc])
 }
 
 fn run_ignore(prog: &str, args: &[&str]) -> RanResult<()> {

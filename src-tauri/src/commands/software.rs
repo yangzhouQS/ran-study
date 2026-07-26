@@ -59,7 +59,7 @@ pub async fn install_software(
         .ok_or_else(|| RanError::NotFound(format!("provider {provider}")))?;
     let root = state.root.clone();
     {
-        let s = state.settings.lock().unwrap().clone();
+        let s = state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone();
         std::env::set_var("RAN_MIRROR", &s.mirror);
         std::env::set_var("RAN_PROXY", &s.proxy);
     }
@@ -84,7 +84,7 @@ pub async fn install_software(
                 if run_mode == RunMode::Service {
                     if let Ok(sc) = elevation::sidecar_path() {
                         let args = elevation::build_service_install_args(&spec);
-                        let _ = elevation::run_elevated(sc.to_str().unwrap(), &args);
+                        let _ = elevation::run_elevated(sc.to_str().unwrap_or(""), &args);
                     }
                 }
                 let id = st.repo.insert_software(&spec).unwrap_or(-1);
@@ -421,7 +421,7 @@ pub async fn uninstall_software(state: State<'_, Arc<AppState>>, id: i64) -> Ran
     if spec.run_mode == RunMode::Service {
         if let Ok(sc) = elevation::sidecar_path() {
             let _ = elevation::run_elevated(
-                sc.to_str().unwrap(),
+                sc.to_str().unwrap_or(""),
                 &elevation::build_service_remove_args(&spec),
             );
         }

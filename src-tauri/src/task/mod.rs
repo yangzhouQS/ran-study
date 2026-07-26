@@ -37,7 +37,7 @@ impl TaskQueue {
     }
 
     pub fn set_progress(&self, id: &str, progress: u32, message: &str) {
-        if let Some(t) = self.tasks.lock().unwrap().get_mut(id) {
+        if let Some(t) = self.tasks.lock().unwrap_or_else(|e| e.into_inner()).get_mut(id) {
             t.progress = progress;
             t.message = message.to_string();
             t.status = TaskStatus::Running;
@@ -46,7 +46,7 @@ impl TaskQueue {
     }
 
     pub fn finish(&self, id: &str, ok: bool) {
-        if let Some(t) = self.tasks.lock().unwrap().get_mut(id) {
+        if let Some(t) = self.tasks.lock().unwrap_or_else(|e| e.into_inner()).get_mut(id) {
             t.status = if ok { TaskStatus::Done } else { TaskStatus::Failed };
             t.progress = 100;
             t.updated_at = Utc::now().timestamp();
@@ -54,11 +54,11 @@ impl TaskQueue {
     }
 
     pub fn list(&self) -> Vec<Task> {
-        self.tasks.lock().unwrap().values().cloned().collect()
+        self.tasks.lock().unwrap_or_else(|e| e.into_inner()).values().cloned().collect()
     }
 
     pub fn get(&self, id: &str) -> Option<Task> {
-        self.tasks.lock().unwrap().get(id).cloned()
+        self.tasks.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned()
     }
 }
 

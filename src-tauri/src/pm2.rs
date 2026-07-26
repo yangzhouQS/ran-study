@@ -21,8 +21,7 @@ pub fn node_path(root: &Path) -> PathBuf {
 /// 激活 Node 全局安装的 pm2 入口
 pub fn pm2_bin(root: &Path) -> PathBuf {
     node_path(root)
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join("node_modules")
         .join("pm2")
         .join("bin")
@@ -47,8 +46,7 @@ pub fn ensure_pm2(root: &Path) -> RanResult<()> {
         ));
     }
     let npm_cli = node
-        .parent()
-        .unwrap()
+        .parent().unwrap_or(std::path::Path::new("."))
         .join("node_modules")
         .join("npm")
         .join("bin")
