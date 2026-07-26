@@ -12,6 +12,7 @@ pub mod pgadmin;
 pub mod redis_admin;
 pub mod logs;
 pub mod apps;
+pub mod files;
 
 use crate::provider::registry::ProviderRegistry;
 use crate::repo::Repo;

@@ -14,6 +14,7 @@ const Database = () => import('@/views/database/database');
 const Settings = () => import('@/views/settings/settings');
 const Logs = () => import('@/views/logs/logs');
 const DevTools = () => import('@/views/devtools/devtools');
+const EnvManager = () => import('@/views/env-manager/env-manager');
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -31,6 +32,7 @@ export const router = createRouter({
     { path: '/terminal', name: 'terminal', component: TerminalView },
     { path: '/settings', name: 'settings', component: Settings },
     { path: '/devtools', name: 'devtools', component: DevTools },
+    { path: '/env-manager', name: 'envManager', component: EnvManager },
     { path: '/logs', name: 'logs', component: Logs },
     { path: '/task-queue', name: 'taskQueue', component: TaskQueue },
   ],

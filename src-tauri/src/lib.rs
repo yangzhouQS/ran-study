@@ -221,6 +221,8 @@ pub fn run() {
             commands::apps::restart_custom_app,
             commands::apps::status_custom_app,
             commands::apps::delete_custom_app,
+            commands::files::read_text_file,
+            commands::files::write_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
