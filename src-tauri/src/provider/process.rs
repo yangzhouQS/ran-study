@@ -2,11 +2,12 @@ use crate::error::{RanError, RanResult};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// 后台拉起便携进程（DETACHED），返回 PID。stdout/stderr 丢弃（生产应重定向到日志）
+/// 后台拉起便携进程（不弹控制台黑窗），返回 PID。stdout/stderr 丢弃（生产应重定向到日志）
 pub fn spawn_child(exe: &Path, args: &[&str], cwd: Option<&Path>) -> RanResult<u32> {
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;
-    const DETACHED_PROCESS: u32 = 0x00000008;
+    // CREATE_NO_WINDOW: 不为控制台程序创建窗口（与 DETACHED_PROCESS 互斥）
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
 
     let mut cmd = Command::new(exe);
@@ -18,7 +19,7 @@ pub fn spawn_child(exe: &Path, args: &[&str], cwd: Option<&Path>) -> RanResult<u
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     #[cfg(windows)]
-    cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    cmd.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
 
     let child = cmd
         .spawn()
