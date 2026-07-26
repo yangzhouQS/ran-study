@@ -45,32 +45,6 @@ pub fn sc_query_status(svc: &str) -> RanResult<String> {
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// 通过 PowerShell Start-Process -Verb RunAs 触发 UAC 提权运行 sc 命令
-fn sc_elevated(verb: &str, svc: &str) -> RanResult<()> {
-    #[cfg(windows)]
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    let ps = format!(
-        "Start-Process -FilePath sc.exe -ArgumentList '{verb}','{svc}' -Verb RunAs -Wait"
-    );
-    let mut cmd = Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-Command", &ps]);
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-
-    let st = cmd
-        .status()
-        .map_err(|e| RanError::Other(format!("powershell 执行失败: {e}")))?;
-    if !st.success() {
-        return Err(RanError::Other(format!(
-            "sc {verb} {svc} 提权执行失败 (exit {})",
-            st.code().unwrap_or(-1)
-        )));
-    }
-    Ok(())
-}
-
 pub fn sc_start(svc: &str) -> RanResult<()> {
     let out = Command::new("sc")
         .args(["start", svc])
@@ -83,7 +57,7 @@ pub fn sc_start(svc: &str) -> RanResult<()> {
     );
     let lower = text.to_ascii_lowercase();
     if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
-        sc_elevated("start", svc)?;
+        return Err(RanError::Other(format!("sc start {svc}: {}", text.trim())));
     }
     Ok(())
 }
@@ -99,7 +73,7 @@ pub fn sc_stop(svc: &str) -> RanResult<()> {
     );
     let lower = text.to_ascii_lowercase();
     if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
-        sc_elevated("stop", svc)?;
+        return Err(RanError::Other(format!("sc stop {svc}: {}", text.trim())));
     }
     Ok(())
 }
