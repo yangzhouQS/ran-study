@@ -62,6 +62,22 @@ export default defineComponent({
       serviceName: '',
       mode: 'Portable' as RunMode,
     });
+
+    // 操作日志
+    const opLogs = ref<string[]>([]);
+    const actionLabel = (a: string) =>
+      ({ start: '启动', stop: '停止', restart: '重启', uninstall: '卸载' }[a] || a);
+    const logOp = (action: string, row: InstalledSoftware | undefined, result: string, ok: boolean) => {
+      if (!row) return;
+      const ts = new Date().toLocaleTimeString();
+      const mode = row.runMode === 'Service' ? '服务' : '便携';
+      const svc = row.serviceName ? ` 服务名:${row.serviceName}` : '';
+      const icon = ok ? '✓' : '✗';
+      const head = `[${ts}] ${actionLabel(action)} ${row.provider}@${row.version} (端口:${row.port} 模式:${mode}${svc})`;
+      const bin = row.binPath ? `  bin: ${row.binPath}` : '';
+      opLogs.value.unshift(`${head}${bin}\n  ${icon} ${result}`);
+      if (opLogs.value.length > 80) opLogs.value.pop();
+    };
     const linkForm = reactive({
       provider: 'mysql',
       installPath: '',
@@ -98,11 +114,23 @@ export default defineComponent({
       ElMessage.success(`已提交安装 ${c.id}@${s.version}`);
     };
     const act = async (id: number, a: 'start' | 'stop' | 'restart') => {
-      await controlSoftware(id, a);
+      const row = installed.value.find((s) => s.id === id);
+      try {
+        const status = await controlSoftware(id, a);
+        logOp(a, row, `状态: ${status}`, true);
+      } catch (e) {
+        logOp(a, row, String(e), false);
+      }
       await refresh();
     };
     const rm = async (id: number) => {
-      await uninstallSoftware(id);
+      const row = installed.value.find((s) => s.id === id);
+      try {
+        await uninstallSoftware(id);
+        logOp('uninstall', row, '已卸载', true);
+      } catch (e) {
+        logOp('uninstall', row, String(e), false);
+      }
       await refresh();
     };
     const openConfig = async (row: InstalledSoftware) => {
@@ -323,6 +351,46 @@ export default defineComponent({
             }}
           </ElTableColumn>
         </ElTable>
+
+        <div style={{ marginTop: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '6px',
+            }}
+          >
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>操作日志</span>
+            <ElButton
+              size="small"
+              text
+              onClick={() => {
+                opLogs.value = [];
+              }}
+            >
+              清空
+            </ElButton>
+          </div>
+          <pre
+            style={{
+              background: '#1e1e1e',
+              color: '#d4d4d4',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontFamily: 'Consolas, Monaco, monospace',
+              lineHeight: '1.8',
+              maxHeight: '220px',
+              overflow: 'auto',
+              margin: '0',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}
+          >
+            {opLogs.value.join('\n') || '（暂无操作记录，点击 启动/重启/停止/卸载 后此处显示执行详情）'}
+          </pre>
+        </div>
 
         <h3 style={{ marginTop: '12px' }}>任务进度</h3>
         <ElTable data={tasks.value}>
