@@ -6,6 +6,9 @@ import TimestampTool from './tools/timestamp-tool';
 import UuidTool from './tools/uuid-tool';
 import JwtTool from './tools/jwt-tool';
 import RegexTool from './tools/regex-tool';
+import HashTool from './tools/hash-tool';
+import ColorTool from './tools/color-tool';
+import CronTool from './tools/cron-tool';
 
 export default defineComponent({
   name: 'DevTools',
@@ -30,6 +33,15 @@ export default defineComponent({
         </ElTabPane>
         <ElTabPane label="正则测试" name="regex">
           <RegexTool />
+        </ElTabPane>
+        <ElTabPane label="Hash 计算" name="hash">
+          <HashTool />
+        </ElTabPane>
+        <ElTabPane label="颜色工具" name="color">
+          <ColorTool />
+        </ElTabPane>
+        <ElTabPane label="Cron 表达式" name="cron">
+          <CronTool />
         </ElTabPane>
       </ElTabs>
     );
