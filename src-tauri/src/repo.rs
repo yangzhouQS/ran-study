@@ -348,14 +348,24 @@ impl Repo {
                 |r| r.get(0),
             )
             .ok();
-        Ok(pw.unwrap_or_default())
+        let raw = pw.unwrap_or_default();
+        // 兼容旧明文密码：仅 hex 格式才解密
+        if !raw.is_empty()
+            && raw.len() % 2 == 0
+            && raw.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            Ok(crate::crypto::decrypt(&raw))
+        } else {
+            Ok(raw)
+        }
     }
 
     pub fn set_root_pw(&self, software_id: i64, pw: &str) -> RanResult<()> {
+        let encrypted = crate::crypto::encrypt(pw);
         self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
             "INSERT INTO mysql_secrets(software_id, root_password) VALUES (?1,?2)
              ON CONFLICT(software_id) DO UPDATE SET root_password=excluded.root_password",
-            rusqlite::params![software_id, pw],
+            rusqlite::params![software_id, encrypted],
         )?;
         Ok(())
     }

@@ -1,5 +1,6 @@
 mod commands;
 mod boot;
+mod crypto;
 mod dbadmin;
 mod download;
 mod elevation;
