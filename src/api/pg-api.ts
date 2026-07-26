@@ -11,3 +11,5 @@ export const importPg = (id: number, db: string, src: string) =>
   invoke<void>('import_pg', { id, db, src });
 export const runPgQuery = (id: number, sql: string) =>
   invoke<string>('run_pg_query', { id, sql });
+export const testPgConnection = (id: number, password: string) =>
+  invoke<boolean>('test_pg_connection', { id, password });

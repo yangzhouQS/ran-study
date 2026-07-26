@@ -83,3 +83,14 @@ pub fn run_pg_query(state: State<'_, Arc<AppState>>, id: i64, sql: String) -> Ra
     let pw = state.repo.get_root_pw(id)?;
     pgadmin::run_query(&spec, &pw, &sql)
 }
+
+/// 测试 PostgreSQL 连接
+#[tauri::command]
+pub fn test_pg_connection(
+    state: State<'_, Arc<AppState>>,
+    id: i64,
+    password: String,
+) -> RanResult<bool> {
+    let spec = load_pg(&state, id)?;
+    pgadmin::test_connection(&spec, &password)
+}

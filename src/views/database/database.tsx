@@ -1,6 +1,8 @@
 import { defineComponent, onMounted, reactive, ref, watch } from 'vue';
 import {
   ElButton,
+  ElCard,
+  ElDialog,
   ElForm,
   ElFormItem,
   ElInput,
@@ -9,30 +11,18 @@ import {
   ElSelect,
   ElTable,
   ElTableColumn,
+  ElTag,
 } from 'element-plus';
 import { listInstalled } from '@/api/software-api';
 import {
   backupMysql,
   changeRootPassword,
   createMysqlDatabase,
-  createMysqlInstance,
-  deleteMysqlInstance,
   importMysql,
   listMysqlDatabases,
-  listMysqlInstances,
   runMysqlQuery,
-  startMysqlInstance,
-  stopMysqlInstance,
+  testMysqlConnection,
 } from '@/api/dbadmin-api';
-import {
-  redisAddKey,
-  redisChangePassword,
-  redisDelKey,
-  redisGetKey,
-  redisListKeys,
-  redisRun,
-  redisRunRemote,
-} from '@/api/redis-api';
 import {
   backupPg,
   changePgPassword,
@@ -40,459 +30,449 @@ import {
   importPg,
   listPgDatabases,
   runPgQuery,
+  testPgConnection,
 } from '@/api/pg-api';
-import type { InstalledSoftware, MysqlInstance } from '@/types/api-type';
+import {
+  redisAddKey,
+  redisChangePassword,
+  redisDelKey,
+  redisGetKey,
+  redisListKeys,
+  redisRun,
+} from '@/api/redis-api';
+import type { InstalledSoftware } from '@/types/api-type';
 import MonacoEditor from '@/components/monaco-editor/monaco-editor';
+
+const SENSITIVE_HINT = '（已保存，输入新密码覆盖）';
 
 export default defineComponent({
   name: 'Database',
   setup() {
     const instances = ref<InstalledSoftware[]>([]);
+    const selectedId = ref<number | null>(null);
     const selected = ref<InstalledSoftware | null>(null);
 
-    // MySQL
+    // Connection
+    const password = ref('');
+    const hasSavedPw = ref(false);
+    const connStatus = ref<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+
+    // Data
     const databases = ref<string[]>([]);
-    const importSrc: Record<string, string> = {};
-    const sqlForm = reactive({ sql: 'SHOW DATABASES;', output: '' });
-    const rootPw = reactive({ value: '' });
-    const createForm = reactive({ name: '', password: '' });
-    const mysqlInstances = ref<MysqlInstance[]>([]);
-    const instForm = reactive({ name: '', port: 3307 });
-
-    // Redis
-    const redisPw = reactive({ value: '', newVal: '' });
     const keys = ref<string[]>([]);
-    const keyForm = reactive({ key: '', val: '' });
-    const getKey = reactive({ key: '', out: '' });
-    const cli = reactive({ args: 'PING', out: '' });
-    const remote = reactive({ host: '127.0.0.1', port: 6379, pw: '', cmd: 'PING', out: '' });
 
-    // PostgreSQL
-    const pgDatabases = ref<string[]>([]);
-    const pgImportSrc: Record<string, string> = {};
-    const pgPw = reactive({ value: '', newVal: '' });
-    const pgCreate = reactive({ name: '', password: '' });
-    const pgSql = reactive({ sql: 'SELECT datname FROM pg_database;', output: '' });
+    // SQL
+    const sqlText = ref('SHOW DATABASES;');
+    const sqlOutput = ref('');
+
+    // Dialogs
+    const createDbVisible = ref(false);
+    const createDbForm = reactive({ name: '', user: '', userPw: '' });
+    const changePwVisible = ref(false);
+    const changePwForm = reactive({ newPassword: '' });
+    const redisCli = reactive({ input: 'PING', output: '' });
+    const getKey = reactive({ key: '', value: '' });
+    const importSrc: Record<string, string> = {};
 
     const isMysql = () => selected.value?.provider === 'mysql';
-    const isRedis = () => selected.value?.provider === 'redis';
     const isPostgres = () => selected.value?.provider === 'postgres';
-
-    const loadDetail = async () => {
-      if (!selected.value) return;
-      if (isMysql()) {
-        try {
-          databases.value = await listMysqlDatabases(selected.value.id);
-        } catch {
-          databases.value = [];
-        }
-        try {
-          mysqlInstances.value = await listMysqlInstances(selected.value.id);
-        } catch {
-          mysqlInstances.value = [];
-        }
-      } else if (isRedis()) {
-        try {
-          keys.value = await redisListKeys(selected.value.id, redisPw.value);
-        } catch {
-          keys.value = [];
-        }
-      } else if (isPostgres()) {
-        try {
-          pgDatabases.value = await listPgDatabases(selected.value.id);
-        } catch {
-          pgDatabases.value = [];
-        }
-      }
-    };
+    const isRedis = () => selected.value?.provider === 'redis';
+    const isRelational = () => isMysql() || isPostgres();
 
     onMounted(async () => {
       const all = await listInstalled();
       instances.value = all.filter(
-        (s) => s.provider === 'mysql' || s.provider === 'redis' || s.provider === 'postgres',
+        (s) => ['mysql', 'redis', 'postgres'].includes(s.provider),
       );
       if (instances.value.length > 0) {
+        selectedId.value = instances.value[0].id;
         selected.value = instances.value[0];
-        await loadDetail();
       }
     });
-    watch(selected, loadDetail);
 
-    // ---- MySQL ops ----
-    const onChangePw = async () => {
-      if (!selected.value || !rootPw.value) return;
-      await changeRootPassword(selected.value.id, rootPw.value);
-      ElMessage.success('root 密码已修改');
-      rootPw.value = '';
-      await loadDetail();
+    watch(selectedId, (id) => {
+      selected.value = instances.value.find((i) => i.id === id) ?? null;
+      connStatus.value = 'idle';
+      databases.value = [];
+      keys.value = [];
+      password.value = '';
+      hasSavedPw.value = false;
+    });
+
+    const testConn = async () => {
+      if (!selected.value) return;
+      connStatus.value = 'testing';
+      try {
+        let ok: boolean;
+        if (isMysql()) ok = await testMysqlConnection(selected.value.id, password.value);
+        else if (isPostgres()) ok = await testPgConnection(selected.value.id, password.value);
+        else if (isRedis()) {
+          await redisRun(selected.value.id, password.value, ['PING']);
+          ok = true;
+        } else ok = false;
+
+        connStatus.value = ok ? 'ok' : 'fail';
+        if (ok) {
+          ElMessage.success('连接成功');
+          await loadData();
+        } else {
+          ElMessage.error('连接失败：密码错误或服务未运行');
+        }
+      } catch (e) {
+        connStatus.value = 'fail';
+        const msg = typeof e === 'object' && e ? JSON.stringify(e) : String(e);
+        ElMessage.error('连接失败：' + msg);
+      }
     };
+
+    const loadData = async () => {
+      if (!selected.value) return;
+      try {
+        if (isMysql()) databases.value = await listMysqlDatabases(selected.value.id);
+        else if (isPostgres()) databases.value = await listPgDatabases(selected.value.id);
+        else if (isRedis()) keys.value = await redisListKeys(selected.value.id, password.value);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const runSql = async () => {
+      if (!selected.value) return;
+      try {
+        if (isMysql()) sqlOutput.value = await runMysqlQuery(selected.value.id, sqlText.value);
+        else if (isPostgres()) sqlOutput.value = await runPgQuery(selected.value.id, sqlText.value);
+      } catch (e) {
+        sqlOutput.value = String(e);
+      }
+    };
+
     const onCreateDb = async () => {
-      if (!selected.value || !createForm.name) return;
-      await createMysqlDatabase(selected.value.id, createForm.name, createForm.password || null);
-      ElMessage.success(`已创建库 ${createForm.name}`);
-      createForm.name = '';
-      createForm.password = '';
-      await loadDetail();
+      if (!selected.value || !createDbForm.name) return;
+      try {
+        if (isMysql()) {
+          await createMysqlDatabase(
+            selected.value.id,
+            createDbForm.name,
+            createDbForm.userPw || null,
+          );
+        } else if (isPostgres()) {
+          await createPgDatabase(
+            selected.value.id,
+            createDbForm.name,
+            createDbForm.userPw || null,
+          );
+        }
+        ElMessage.success(`数据库 ${createDbForm.name} 创建成功`);
+        createDbVisible.value = false;
+        createDbForm.name = '';
+        createDbForm.user = '';
+        createDbForm.userPw = '';
+        await loadData();
+      } catch (e) {
+        ElMessage.error(String(e));
+      }
     };
+
+    const onChangePw = async () => {
+      if (!selected.value || !changePwForm.newPassword) return;
+      try {
+        if (isMysql()) await changeRootPassword(selected.value.id, changePwForm.newPassword);
+        else if (isPostgres()) await changePgPassword(selected.value.id, changePwForm.newPassword);
+        else if (isRedis()) await redisChangePassword(selected.value.id, password.value, changePwForm.newPassword);
+        ElMessage.success('密码修改成功');
+        password.value = changePwForm.newPassword;
+        changePwVisible.value = false;
+        changePwForm.newPassword = '';
+      } catch (e) {
+        ElMessage.error(String(e));
+      }
+    };
+
     const onBackup = async (db: string) => {
       if (!selected.value) return;
-      const p = await backupMysql(selected.value.id, db);
-      ElMessage.success(`已备份到：${p}`);
+      try {
+        const path = isMysql()
+          ? await backupMysql(selected.value.id, db)
+          : await backupPg(selected.value.id, db);
+        ElMessage.success(`已备份到：${path}`);
+      } catch (e) {
+        ElMessage.error(String(e));
+      }
     };
+
     const onImport = async (db: string) => {
       if (!selected.value) return;
       const src = importSrc[db];
       if (!src) return;
-      await importMysql(selected.value.id, db, src);
-      ElMessage.success(`已导入 ${src}`);
-    };
-    const onRunSql = async () => {
-      if (!selected.value) return;
       try {
-        sqlForm.output = await runMysqlQuery(selected.value.id, sqlForm.sql);
+        if (isMysql()) await importMysql(selected.value.id, db, src);
+        else if (isPostgres()) await importPg(selected.value.id, db, src);
+        ElMessage.success('导入成功');
       } catch (e) {
-        sqlForm.output = String(e);
+        ElMessage.error(String(e));
       }
     };
-    const onCreateInst = async () => {
-      if (!selected.value || !instForm.name) return;
-      await createMysqlInstance(selected.value.id, instForm.name, instForm.port, 'Portable');
-      ElMessage.success(`已创建实例 ${instForm.name}:${instForm.port}`);
-      instForm.name = '';
-      await loadDetail();
-    };
-    const onInst = async (inst: MysqlInstance, action: 'start' | 'stop' | 'delete') => {
+
+    const onRedisCli = async () => {
       if (!selected.value) return;
-      if (action === 'start') await startMysqlInstance(selected.value.id, inst.id);
-      if (action === 'stop') await stopMysqlInstance(selected.value.id, inst.id);
-      if (action === 'delete') await deleteMysqlInstance(selected.value.id, inst.id);
-      await loadDetail();
+      try {
+        const args = redisCli.input.split(/\s+/).filter(Boolean);
+        redisCli.output = await redisRun(selected.value.id, password.value, args);
+      } catch (e) {
+        redisCli.output = String(e);
+      }
     };
 
-    // ---- Redis ops ----
-    const onAddKey = async () => {
-      if (!selected.value || !keyForm.key) return;
-      await redisAddKey(selected.value.id, redisPw.value, keyForm.key, keyForm.val);
-      keyForm.key = '';
-      keyForm.val = '';
-      await loadDetail();
-    };
     const onGetKey = async () => {
       if (!selected.value) return;
       try {
-        getKey.out = await redisGetKey(selected.value.id, redisPw.value, getKey.key);
+        getKey.value = await redisGetKey(selected.value.id, password.value, getKey.key);
       } catch (e) {
-        getKey.out = String(e);
+        getKey.value = String(e);
       }
     };
+
+    const onAddKey = async () => {
+      if (!selected.value || !getKey.key) return;
+      try {
+        await redisAddKey(selected.value.id, password.value, getKey.key, getKey.value);
+        ElMessage.success('已设置');
+        await loadData();
+      } catch (e) {
+        ElMessage.error(String(e));
+      }
+    };
+
     const onDelKey = async (k: string) => {
       if (!selected.value) return;
-      await redisDelKey(selected.value.id, redisPw.value, k);
-      await loadDetail();
-    };
-    const onCli = async () => {
-      if (!selected.value) return;
-      try {
-        const args = cli.args.split(/\s+/).filter(Boolean);
-        cli.out = await redisRun(selected.value.id, redisPw.value, args);
-      } catch (e) {
-        cli.out = String(e);
-      }
-    };
-    const onRemote = async () => {
-      try {
-        const args = remote.cmd.split(/\s+/).filter(Boolean);
-        remote.out = await redisRunRemote(remote.host, remote.port, remote.pw, args);
-      } catch (e) {
-        remote.out = String(e);
-      }
-    };
-    const onRedisPw = async () => {
-      if (!selected.value || !redisPw.newVal) return;
-      await redisChangePassword(selected.value.id, redisPw.value, redisPw.newVal);
-      ElMessage.success('Redis 密码已修改并重启');
-      redisPw.value = redisPw.newVal;
-      redisPw.newVal = '';
+      await redisDelKey(selected.value.id, password.value, k);
+      await loadData();
     };
 
-    // ---- PostgreSQL ops ----
-    const onPgPw = async () => {
-      if (!selected.value || !pgPw.newVal) return;
-      await changePgPassword(selected.value.id, pgPw.newVal);
-      ElMessage.success('postgres 密码已修改');
-      pgPw.value = pgPw.newVal;
-      pgPw.newVal = '';
-    };
-    const onCreatePgDb = async () => {
-      if (!selected.value || !pgCreate.name) return;
-      await createPgDatabase(selected.value.id, pgCreate.name, pgCreate.password || null);
-      ElMessage.success(`已创建库 ${pgCreate.name}`);
-      pgCreate.name = '';
-      pgCreate.password = '';
-      await loadDetail();
-    };
-    const onBackupPg = async (db: string) => {
-      if (!selected.value) return;
-      const p = await backupPg(selected.value.id, db);
-      ElMessage.success(`已备份到：${p}`);
-    };
-    const onImportPg = async (db: string) => {
-      if (!selected.value) return;
-      const src = pgImportSrc[db];
-      if (!src) return;
-      await importPg(selected.value.id, db, src);
-      ElMessage.success(`已导入 ${src}`);
-    };
-    const onRunPgSql = async () => {
-      if (!selected.value) return;
-      try {
-        pgSql.output = await runPgQuery(selected.value.id, pgSql.sql);
-      } catch (e) {
-        pgSql.output = String(e);
-      }
-    };
+    const connStatusText = () =>
+      ({ idle: '未测试', testing: '测试中...', ok: '已连接', fail: '连接失败' }[connStatus.value]);
+    const connStatusType = () =>
+      ({ idle: 'info', testing: 'warning', ok: 'success', fail: 'danger' }[connStatus.value] as any);
 
     return () => (
-      <div>
-        <ElForm labelWidth="60" inline style={{ marginBottom: '8px' }}>
-          <ElFormItem label="实例">
-            <ElSelect
-              modelValue={selected.value?.id ?? null}
-              onChange={(v: number) => {
-                selected.value = instances.value.find((i) => i.id === v) ?? null;
-              }}
-              placeholder="选择数据库实例"
-              size="small"
-              style={{ width: '240px' }}
-            >
-              {instances.value.map((i) => (
-                <ElOption
-                  key={i.id}
-                  label={`${i.provider} ${i.version} (#${i.id})`}
-                  value={i.id}
-                />
-              ))}
-            </ElSelect>
-          </ElFormItem>
-        </ElForm>
+      <div style={{ maxWidth: '900px' }}>
+        {/* Instance Selector */}
+        <ElCard shadow="never" bodyStyle={{ padding: '12px' }} style={{ marginBottom: '12px' }}>
+          <ElForm labelWidth="80" inline>
+            <ElFormItem label="实例">
+              <ElSelect
+                modelValue={selectedId.value}
+                onUpdate:modelValue={(v: number) => { selectedId.value = v; }}
+                placeholder="选择数据库"
+                size="default"
+                style={{ width: '280px' }}
+              >
+                {instances.value.map((i) => (
+                  <ElOption
+                    key={i.id}
+                    label={`${i.provider.toUpperCase()} ${i.version} :${i.port}`}
+                    value={i.id}
+                  />
+                ))}
+              </ElSelect>
+            </ElFormItem>
+          </ElForm>
+        </ElCard>
 
-        {isMysql() && selected.value ? (
-          <div>
-            <ElForm labelWidth="70" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="新root密码">
+        {/* Connection Panel */}
+        {selected.value ? (
+          <ElCard shadow="never" style={{ marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <ElTag type="primary" size="large">
+                {selected.value.provider.toUpperCase()}
+              </ElTag>
+              <span style={{ fontSize: '14px', color: '#606266' }}>
+                {selected.value.version} · 端口 {selected.value.port} ·{' '}
+                {selected.value.runMode === 'Service' ? '服务模式' : '便携模式'}
+              </span>
+              <span style={{ flex: '1' }} />
+              <ElTag type={connStatusType()} size="default">
+                {connStatusText()}
+              </ElTag>
+            </div>
+            <ElForm labelWidth="80" inline>
+              <ElFormItem label={isRedis() ? '密码' : 'Root 密码'}>
                 <ElInput
-                  modelValue={rootPw.value}
-                  onInput={(v: string) => { rootPw.value = v; }}
-                  size="small"
-                  style={{ width: '160px' }}
+                  modelValue={password.value}
+                  onUpdate:modelValue={(v: string) => { password.value = v; }}
+                  type="password"
+                  showPassword
+                  placeholder={hasSavedPw.value ? SENSITIVE_HINT : '输入密码'}
+                  style={{ width: '240px' }}
+                  onKeydown={(e: Event) => { if ((e as KeyboardEvent).key === 'Enter') testConn(); }}
                 />
               </ElFormItem>
               <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onChangePw}>改密码</ElButton>
+                <ElButton
+                  type="primary"
+                  loading={connStatus.value === 'testing'}
+                  onClick={testConn}
+                >
+                  测试连接
+                </ElButton>
+                <ElButton onClick={() => changePwVisible.value = true}>修改密码</ElButton>
               </ElFormItem>
             </ElForm>
-            <ElForm labelWidth="60" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="库名">
-                <ElInput modelValue={createForm.name} onInput={(v: string) => { createForm.name = v; }} size="small" style={{ width: '140px' }} />
-              </ElFormItem>
-              <ElFormItem label="库密码">
-                <ElInput modelValue={createForm.password} onInput={(v: string) => { createForm.password = v; }} size="small" style={{ width: '140px' }} placeholder="留空=不建用户" />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onCreateDb}>建库</ElButton>
-              </ElFormItem>
-            </ElForm>
+          </ElCard>
+        ) : null}
 
-            <h3>数据库</h3>
-            <ElTable data={databases.value.map((d) => ({ name: d }))}>
-              <ElTableColumn prop="name" label="库名" />
-              <ElTableColumn label="备份" width={120}>
-                {{ default: (scope: { row: { name: string } }) => <ElButton size="small" onClick={() => onBackup(scope.row.name)}>备份</ElButton> }}
-              </ElTableColumn>
-              <ElTableColumn label="导入 .sql" width={320}>
-                {{ default: (scope: { row: { name: string } }) => (
-                  <span>
-                    <ElInput modelValue={importSrc[scope.row.name] || ''} onInput={(v: string) => { importSrc[scope.row.name] = v; }} placeholder="D:\path\file.sql" size="small" style={{ width: '180px' }} />
-                    <ElButton size="small" style={{ marginLeft: '4px' }} onClick={() => onImport(scope.row.name)}>导入</ElButton>
-                  </span>
-                ) }}
-              </ElTableColumn>
-            </ElTable>
+        {/* Management Area (only when connected) */}
+        {connStatus.value === 'ok' && selected.value ? (
+          <div>
+            {isRelational() ? (
+              <div>
+                {/* Database List */}
+                <ElCard shadow="never" style={{ marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 600 }}>数据库列表</span>
+                    <ElButton type="primary" size="small" onClick={() => (createDbVisible.value = true)}>
+                      + 创建数据库
+                    </ElButton>
+                  </div>
+                  <ElTable data={databases.value.map((d) => ({ name: d }))} size="small">
+                    <ElTableColumn prop="name" label="数据库名" />
+                    <ElTableColumn label="备份" width={100}>
+                      {{ default: (scope: { row: { name: string } }) => (
+                        <ElButton text size="small" onClick={() => onBackup(scope.row.name)}>备份</ElButton>
+                      ) }}
+                    </ElTableColumn>
+                    <ElTableColumn label="导入 SQL" width={300}>
+                      {{ default: (scope: { row: { name: string } }) => (
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <ElInput
+                            modelValue={importSrc[scope.row.name] || ''}
+                            onUpdate:modelValue={(v: string) => { importSrc[scope.row.name] = v; }}
+                            placeholder=".sql 文件路径"
+                            size="small"
+                            style={{ width: '180px' }}
+                          />
+                          <ElButton text size="small" onClick={() => onImport(scope.row.name)}>导入</ElButton>
+                        </div>
+                      ) }}
+                    </ElTableColumn>
+                  </ElTable>
+                </ElCard>
 
-            <h3 style={{ marginTop: '12px' }}>实例（多端口）</h3>
-            <ElForm labelWidth="60" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="名称">
-                <ElInput modelValue={instForm.name} onInput={(v: string) => { instForm.name = v; }} size="small" style={{ width: '120px' }} />
-              </ElFormItem>
-              <ElFormItem label="端口">
-                <ElInput modelValue={String(instForm.port)} onInput={(v: string) => { instForm.port = Number(v) || 0; }} size="small" style={{ width: '90px' }} />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onCreateInst}>新建实例</ElButton>
-              </ElFormItem>
-            </ElForm>
-            <ElTable data={mysqlInstances.value}>
-              <ElTableColumn prop="name" label="名称" width={140} />
-              <ElTableColumn prop="port" label="端口" width={90} />
-              <ElTableColumn label="操作" width={240}>
-                {{ default: (scope: { row: MysqlInstance }) => (
-                  <span>
-                    <ElButton size="small" onClick={() => onInst(scope.row, 'start')}>启动</ElButton>
-                    <ElButton size="small" onClick={() => onInst(scope.row, 'stop')}>停止</ElButton>
-                    <ElButton type="danger" size="small" onClick={() => onInst(scope.row, 'delete')}>删除</ElButton>
-                  </span>
-                ) }}
-              </ElTableColumn>
-            </ElTable>
+                {/* SQL Editor */}
+                <ElCard shadow="never" header="执行 SQL">
+                  <MonacoEditor
+                    modelValue={sqlText.value}
+                    onUpdate:modelValue={(v: string) => { sqlText.value = v; }}
+                    language="sql"
+                    height="120px"
+                  />
+                  <div style={{ marginTop: '8px' }}>
+                    <ElButton type="primary" size="small" onClick={runSql}>运行</ElButton>
+                  </div>
+                  <pre style={{
+                    background: '#1e1e1e', color: '#d4d4d4', padding: '10px',
+                    borderRadius: '6px', fontSize: '12px', marginTop: '8px',
+                    maxHeight: '240px', overflow: 'auto', whiteSpace: 'pre-wrap',
+                  }}>
+                    {sqlOutput.value || '（点击运行后显示结果）'}
+                  </pre>
+                </ElCard>
+              </div>
+            ) : null}
 
-            <h3 style={{ marginTop: '12px' }}>执行 SQL</h3>
-            <MonacoEditor
-              modelValue={sqlForm.sql}
-              onUpdate:modelValue={(v: string) => { sqlForm.sql = v; }}
-              language="sql"
-              height="100px"
-            />
-            <ElButton size="small" type="primary" style={{ marginTop: '8px' }} onClick={onRunSql}>运行</ElButton>
-            <pre style={{ marginTop: '8px', background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '240px', overflow: 'auto' }}>{sqlForm.output}</pre>
+            {/* Redis Panel */}
+            {isRedis() ? (
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <ElCard shadow="never" style={{ flex: '1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 600 }}>键值操作</span>
+                  </div>
+                  <ElForm labelWidth="60" size="small">
+                    <ElFormItem label="键名">
+                      <ElInput modelValue={getKey.key} onUpdate:modelValue={(v: string) => { getKey.key = v; }} />
+                    </ElFormItem>
+                    <ElFormItem label="值">
+                      <ElInput modelValue={getKey.value} onUpdate:modelValue={(v: string) => { getKey.value = v; }} />
+                    </ElFormItem>
+                    <ElFormItem>
+                      <ElButton type="primary" size="small" onClick={onAddKey}>SET</ElButton>
+                      <ElButton size="small" onClick={onGetKey}>GET</ElButton>
+                    </ElFormItem>
+                  </ElForm>
+                  <ElTable data={keys.value.map((k) => ({ key: k }))} size="small" maxHeight="300">
+                    <ElTableColumn prop="key" label="Key" />
+                    <ElTableColumn label="" width="60">
+                      {{ default: (scope: { row: { key: string } }) => (
+                        <ElButton type="danger" text size="small" onClick={() => onDelKey(scope.row.key)}>DEL</ElButton>
+                      ) }}
+                    </ElTableColumn>
+                  </ElTable>
+                </ElCard>
+                <ElCard shadow="never" style={{ flex: '1' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '8px' }}>Redis CLI</div>
+                  <ElInput
+                    modelValue={redisCli.input}
+                    onUpdate:modelValue={(v: string) => { redisCli.input = v; }}
+                    placeholder="如 KEYS * 或 GET mykey"
+                    size="small"
+                    style={{ marginBottom: '8px' }}
+                    onKeydown={(e: Event) => { if ((e as KeyboardEvent).key === 'Enter') onRedisCli(); }}
+                  />
+                  <ElButton type="primary" size="small" onClick={onRedisCli}>执行</ElButton>
+                  <pre style={{
+                    background: '#1e1e1e', color: '#d4d4d4', padding: '10px',
+                    borderRadius: '6px', fontSize: '12px', marginTop: '8px',
+                    maxHeight: '200px', overflow: 'auto', whiteSpace: 'pre-wrap',
+                  }}>
+                    {redisCli.output}
+                  </pre>
+                </ElCard>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        {isRedis() && selected.value ? (
-          <div>
-            <ElForm labelWidth="70" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="当前密码">
-                <ElInput modelValue={redisPw.value} onInput={(v: string) => { redisPw.value = v; }} size="small" style={{ width: '140px' }} placeholder="无密码留空" />
-              </ElFormItem>
-              <ElFormItem label="新密码">
-                <ElInput modelValue={redisPw.newVal} onInput={(v: string) => { redisPw.newVal = v; }} size="small" style={{ width: '140px' }} />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onRedisPw}>改密码并重启</ElButton>
-              </ElFormItem>
-            </ElForm>
-
-            <ElForm labelWidth="60" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="键">
-                <ElInput modelValue={keyForm.key} onInput={(v: string) => { keyForm.key = v; }} size="small" style={{ width: '140px' }} />
-              </ElFormItem>
-              <ElFormItem label="值">
-                <ElInput modelValue={keyForm.val} onInput={(v: string) => { keyForm.val = v; }} size="small" style={{ width: '160px' }} />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onAddKey}>加键</ElButton>
-              </ElFormItem>
-            </ElForm>
-
-            <h3>键</h3>
-            <ElTable data={keys.value.map((k) => ({ key: k }))}>
-              <ElTableColumn prop="key" label="键" />
-              <ElTableColumn label="操作" width={100}>
-                {{ default: (scope: { row: { key: string } }) => <ElButton type="danger" size="small" onClick={() => onDelKey(scope.row.key)}>删除</ElButton> }}
-              </ElTableColumn>
-            </ElTable>
-
-            <h3 style={{ marginTop: '12px' }}>取值</h3>
-            <ElForm labelWidth="60" inline>
-              <ElFormItem label="键">
-                <ElInput modelValue={getKey.key} onInput={(v: string) => { getKey.key = v; }} size="small" style={{ width: '200px' }} />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onGetKey}>取值</ElButton>
-              </ElFormItem>
-            </ElForm>
-            <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '120px', overflow: 'auto' }}>{getKey.out}</pre>
-
-            <h3 style={{ marginTop: '12px' }}>命令行</h3>
-            <ElInput modelValue={cli.args} onInput={(v: string) => { cli.args = v; }} placeholder="如 SET k v  /  KEYS *" size="small" />
-            <ElButton size="small" type="primary" style={{ marginTop: '4px' }} onClick={onCli}>执行</ElButton>
-            <pre style={{ marginTop: '4px', background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '120px', overflow: 'auto' }}>{cli.out}</pre>
-
-            <h3 style={{ marginTop: '12px' }}>远程连接</h3>
-            <ElForm labelWidth="60" inline>
-              <ElFormItem label="主机">
-                <ElInput modelValue={remote.host} onInput={(v: string) => { remote.host = v; }} size="small" style={{ width: '140px' }} />
-              </ElFormItem>
-              <ElFormItem label="端口">
-                <ElInput modelValue={String(remote.port)} onInput={(v: string) => { remote.port = Number(v) || 0; }} size="small" style={{ width: '80px' }} />
-              </ElFormItem>
-              <ElFormItem label="密码">
-                <ElInput modelValue={remote.pw} onInput={(v: string) => { remote.pw = v; }} size="small" style={{ width: '120px' }} />
-              </ElFormItem>
-              <ElFormItem label="命令">
-                <ElInput modelValue={remote.cmd} onInput={(v: string) => { remote.cmd = v; }} size="small" style={{ width: '160px' }} />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onRemote}>执行</ElButton>
-              </ElFormItem>
-            </ElForm>
-            <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '120px', overflow: 'auto' }}>{remote.out}</pre>
+        {/* Create Database Dialog */}
+        <ElDialog
+          title="创建数据库"
+          modelValue={createDbVisible.value}
+          onUpdate:modelValue={(v: boolean) => { createDbVisible.value = v; }}
+          width="480px"
+        >
+          <ElForm labelWidth="100">
+            <ElFormItem label="数据库名">
+              <ElInput modelValue={createDbForm.name} onUpdate:modelValue={(v: string) => { createDbForm.name = v; }} placeholder="如 my_app" />
+            </ElFormItem>
+            <ElFormItem label="创建用户">
+              <ElInput modelValue={createDbForm.user} onUpdate:modelValue={(v: string) => { createDbForm.user = v; }} placeholder="留空则不创建用户" />
+            </ElFormItem>
+            <ElFormItem label="用户密码">
+              <ElInput modelValue={createDbForm.userPw} onUpdate:modelValue={(v: string) => { createDbForm.userPw = v; }} type="password" showPassword placeholder="用户密码" />
+            </ElFormItem>
+          </ElForm>
+          <div style={{ textAlign: 'right' }}>
+            <ElButton size="small" onClick={() => (createDbVisible.value = false)}>取消</ElButton>
+            <ElButton size="small" type="primary" onClick={onCreateDb}>创建</ElButton>
           </div>
-        ) : null}
+        </ElDialog>
 
-        {isPostgres() && selected.value ? (
-          <div>
-            <ElForm labelWidth="90" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="当前密码">
-                <ElInput
-                  modelValue={pgPw.value}
-                  onInput={(v: string) => { pgPw.value = v; }}
-                  size="small"
-                  style={{ width: '140px' }}
-                  placeholder="无密码留空"
-                />
-              </ElFormItem>
-              <ElFormItem label="新密码">
-                <ElInput
-                  modelValue={pgPw.newVal}
-                  onInput={(v: string) => { pgPw.newVal = v; }}
-                  size="small"
-                  style={{ width: '140px' }}
-                />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onPgPw}>改 postgres 密码</ElButton>
-              </ElFormItem>
-            </ElForm>
-
-            <ElForm labelWidth="60" inline style={{ marginBottom: '8px' }}>
-              <ElFormItem label="库名">
-                <ElInput modelValue={pgCreate.name} onInput={(v: string) => { pgCreate.name = v; }} size="small" style={{ width: '140px' }} />
-              </ElFormItem>
-              <ElFormItem label="库密码">
-                <ElInput modelValue={pgCreate.password} onInput={(v: string) => { pgCreate.password = v; }} size="small" style={{ width: '140px' }} placeholder="留空=不建用户" />
-              </ElFormItem>
-              <ElFormItem>
-                <ElButton size="small" type="primary" onClick={onCreatePgDb}>建库</ElButton>
-              </ElFormItem>
-            </ElForm>
-
-            <h3>数据库</h3>
-            <ElTable data={pgDatabases.value.map((d) => ({ name: d }))}>
-              <ElTableColumn prop="name" label="库名" />
-              <ElTableColumn label="备份" width={120}>
-                {{ default: (scope: { row: { name: string } }) => <ElButton size="small" onClick={() => onBackupPg(scope.row.name)}>备份</ElButton> }}
-              </ElTableColumn>
-              <ElTableColumn label="导入 .sql" width={320}>
-                {{ default: (scope: { row: { name: string } }) => (
-                  <span>
-                    <ElInput modelValue={pgImportSrc[scope.row.name] || ''} onInput={(v: string) => { pgImportSrc[scope.row.name] = v; }} placeholder="D:\path\file.sql" size="small" style={{ width: '180px' }} />
-                    <ElButton size="small" style={{ marginLeft: '4px' }} onClick={() => onImportPg(scope.row.name)}>导入</ElButton>
-                  </span>
-                ) }}
-              </ElTableColumn>
-            </ElTable>
-
-            <h3 style={{ marginTop: '12px' }}>执行 SQL（psql）</h3>
-            <MonacoEditor
-              modelValue={pgSql.sql}
-              onUpdate:modelValue={(v: string) => { pgSql.sql = v; }}
-              language="sql"
-              height="100px"
-            />
-            <ElButton size="small" type="primary" style={{ marginTop: '8px' }} onClick={onRunPgSql}>运行</ElButton>
-            <pre style={{ marginTop: '8px', background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '240px', overflow: 'auto' }}>{pgSql.output}</pre>
+        {/* Change Password Dialog */}
+        <ElDialog
+          title="修改密码"
+          modelValue={changePwVisible.value}
+          onUpdate:modelValue={(v: boolean) => { changePwVisible.value = v; }}
+          width="400px"
+        >
+          <ElForm labelWidth="80">
+            <ElFormItem label="新密码">
+              <ElInput modelValue={changePwForm.newPassword} onUpdate:modelValue={(v: string) => { changePwForm.newPassword = v; }} type="password" showPassword />
+            </ElFormItem>
+          </ElForm>
+          <div style={{ textAlign: 'right' }}>
+            <ElButton size="small" onClick={() => (changePwVisible.value = false)}>取消</ElButton>
+            <ElButton size="small" type="primary" onClick={onChangePw}>确认修改</ElButton>
           </div>
-        ) : null}
+        </ElDialog>
       </div>
     );
   },

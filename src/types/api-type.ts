@@ -144,6 +144,16 @@ export interface MysqlInstance {
   status: string;
 }
 
+export interface DbConnection {
+  id: number;
+  provider: string;
+  version: string;
+  port: number;
+  runMode: RunMode;
+  binPath: string;
+  installPath: string;
+}
+
 export interface MonitorSample {
   ts: number;
   cpu: number;

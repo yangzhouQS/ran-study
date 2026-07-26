@@ -44,6 +44,14 @@ pub fn run_query(spec: &SoftwareSpec, pw: &str, sql: &str) -> RanResult<String> 
     check(out)
 }
 
+/// 测试连接
+pub fn test_connection(spec: &SoftwareSpec, pw: &str) -> RanResult<bool> {
+    let out = base(&psql_exe(spec), spec, pw)
+        .args(["-c", "SELECT 1"])
+        .output()?;
+    Ok(out.status.success())
+}
+
 fn is_system_db(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
