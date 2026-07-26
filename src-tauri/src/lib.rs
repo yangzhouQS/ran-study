@@ -213,6 +213,7 @@ pub fn run() {
             commands::redis_admin::redis_change_password,
             commands::logs::list_log_files,
             commands::logs::read_log_file,
+            commands::logs::read_merged_logs,
             commands::apps::list_custom_apps,
             commands::apps::add_custom_app,
             commands::apps::start_custom_app,

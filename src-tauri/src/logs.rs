@@ -11,6 +11,13 @@ pub struct LogFile {
     pub size: u64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergedLine {
+    pub source: String,
+    pub line: String,
+}
+
 /// 扫描 <root>/logs 与 <PM2_HOME>/logs 下的 *.log 文件
 pub fn list(root: &Path) -> RanResult<Vec<LogFile>> {
     let mut out: Vec<LogFile> = Vec::new();
@@ -49,6 +56,30 @@ pub fn read(path: &Path, lines: usize) -> RanResult<String> {
     let text = std::fs::read_to_string(path)?;
     let collected: Vec<&str> = text.lines().rev().take(lines).collect();
     Ok(collected.into_iter().rev().collect::<Vec<_>>().join("\n"))
+}
+
+/// 读取多个日志文件，合并并按来源标记前缀
+pub fn read_merged(paths: &[String], lines_per_file: usize) -> RanResult<Vec<MergedLine>> {
+    let mut all: Vec<MergedLine> = Vec::new();
+    for p in paths {
+        let path = Path::new(p);
+        if !path.exists() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let text = std::fs::read_to_string(path).unwrap_or_default();
+        let collected: Vec<&str> = text.lines().rev().take(lines_per_file).collect();
+        for line in collected.into_iter().rev() {
+            all.push(MergedLine {
+                source: name.clone(),
+                line: line.to_string(),
+            });
+        }
+    }
+    Ok(all)
 }
 
 /// 追加操作审计日志到 <root>/logs/audit.log
