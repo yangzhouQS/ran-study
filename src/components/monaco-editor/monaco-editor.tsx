@@ -1,6 +1,13 @@
 import { defineComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import loader from '@monaco-editor/loader';
 
+// 配置国内 CDN 加速 Monaco 加载
+loader.config({
+  paths: {
+    vs: 'https://g.alicdn.com/code/lib/monaco-editor/0.45.0/min/vs',
+  },
+});
+
 let monacoReady: Promise<any> | null = null;
 function getMonaco() {
   if (!monacoReady) {
