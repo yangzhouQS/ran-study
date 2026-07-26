@@ -1,7 +1,9 @@
-import { defineComponent, onMounted, ref } from 'vue';
+import { defineComponent, onMounted, reactive, ref } from 'vue';
 import {
   ElAlert,
   ElButton,
+  ElDialog,
+  ElInput,
   ElMessage,
   ElOption,
   ElSelect,
@@ -13,13 +15,15 @@ import {
   controlSoftware,
   installSoftware,
   listCatalog,
+  readSoftwareConfig,
   uninstallSoftware,
+  writeSoftwareConfig,
 } from '@/api/software-api';
 import { getSystemInfo } from '@/api/system-api';
 import { useInstalled } from '@/composables/use-installed';
 import { useTaskStream } from '@/composables/use-task-stream';
 import { useAppStore } from '@/store/app-store';
-import type { RunMode, SoftwareCatalog } from '@/types/api-type';
+import type { InstalledSoftware, RunMode, SoftwareCatalog } from '@/types/api-type';
 
 interface Sel {
   version: string;
@@ -36,6 +40,7 @@ export default defineComponent({
     const { list: installed, refresh } = useInstalled();
     const { tasks } = useTaskStream();
     const sel = ref<Record<string, Sel>>({});
+    const cfg = reactive({ visible: false, id: 0, name: '', content: '' });
 
     const selOf = (c: SoftwareCatalog): Sel => {
       if (!sel.value[c.id]) {
@@ -67,6 +72,21 @@ export default defineComponent({
     const rm = async (id: number) => {
       await uninstallSoftware(id);
       await refresh();
+    };
+    const openConfig = async (row: InstalledSoftware) => {
+      cfg.id = row.id;
+      cfg.name = `${row.provider} ${row.version}`;
+      cfg.visible = true;
+      try {
+        cfg.content = await readSoftwareConfig(row.id);
+      } catch (e) {
+        cfg.content = String(e);
+      }
+    };
+    const saveConfig = async () => {
+      await writeSoftwareConfig(cfg.id, cfg.content);
+      ElMessage.success('配置已保存（需重启该软件生效）');
+      cfg.visible = false;
     };
 
     return () => (
@@ -131,15 +151,18 @@ export default defineComponent({
           <ElTableColumn prop="version" label="版本" width={140} />
           <ElTableColumn prop="runMode" label="模式" width={100} />
           <ElTableColumn prop="port" label="端口" width={90} />
-          <ElTableColumn label="操作" width={260}>
+          <ElTableColumn label="操作" width={320}>
             {{
-              default: (scope: { row: { id: number } }) => (
+              default: (scope: { row: InstalledSoftware }) => (
                 <span>
                   <ElButton size="small" onClick={() => act(scope.row.id, 'start')}>
                     启动
                   </ElButton>
                   <ElButton size="small" onClick={() => act(scope.row.id, 'stop')}>
                     停止
+                  </ElButton>
+                  <ElButton size="small" onClick={() => openConfig(scope.row)}>
+                    配置
                   </ElButton>
                   <ElButton type="danger" size="small" onClick={() => rm(scope.row.id)}>
                     卸载
@@ -163,6 +186,40 @@ export default defineComponent({
           </ElTableColumn>
           <ElTableColumn prop="message" label="消息" />
         </ElTable>
+
+        <ElDialog
+          title={`编辑配置 - ${cfg.name}`}
+          modelValue={cfg.visible}
+          onUpdate:modelValue={(v: boolean) => {
+            cfg.visible = v;
+          }}
+          width="720px"
+        >
+          <ElInput
+            type="textarea"
+            modelValue={cfg.content}
+            onInput={(v: string) => {
+              cfg.content = v;
+            }}
+            rows={18}
+            style={{ fontFamily: 'Consolas, Monaco, monospace', fontSize: '12px' }}
+          />
+          <div style={{ marginTop: '8px', textAlign: 'right' }}>
+            <ElButton
+              size="small"
+              onClick={() =>
+                readSoftwareConfig(cfg.id)
+                  .then((c) => (cfg.content = c))
+                  .catch((e) => (cfg.content = String(e)))
+              }
+            >
+              重新载入
+            </ElButton>
+            <ElButton size="small" type="primary" onClick={saveConfig}>
+              保存
+            </ElButton>
+          </div>
+        </ElDialog>
       </div>
     );
   },

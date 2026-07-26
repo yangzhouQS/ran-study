@@ -145,3 +145,23 @@ export interface MonitorSample {
   memTotal: number;
   procs: string;
 }
+
+export interface DashboardSummary {
+  installedSoftware: number;
+  mysqlCount: number;
+  redisCount: number;
+  nodeVersions: number;
+  pm2Apps: number;
+  scheduledTasks: number;
+  runningTasks: number;
+  cpu: number;
+  memUsed: number;
+  memTotal: number;
+  uptime: number;
+}
+
+export interface LogFile {
+  path: string;
+  name: string;
+  size: number;
+}

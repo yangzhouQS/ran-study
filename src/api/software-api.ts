@@ -13,3 +13,7 @@ export const installSoftware = (provider: string, version: string, runMode: RunM
 export const controlSoftware = (id: number, action: 'start' | 'stop' | 'status') =>
   invoke<RunStatus>('control_software', { id, action });
 export const uninstallSoftware = (id: number) => invoke<void>('uninstall_software', { id });
+export const readSoftwareConfig = (id: number) =>
+  invoke<string>('read_software_config', { id });
+export const writeSoftwareConfig = (id: number, content: string) =>
+  invoke<void>('write_software_config', { id, content });

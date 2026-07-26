@@ -10,6 +10,8 @@ const Monitor = () => import('@/views/monitor/monitor');
 const Schedule = () => import('@/views/schedule/schedule');
 const TerminalView = () => import('@/views/terminal/terminal');
 const Database = () => import('@/views/database/database');
+const Settings = () => import('@/views/settings/settings');
+const Logs = () => import('@/views/logs/logs');
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -24,6 +26,8 @@ export const router = createRouter({
     { path: '/monitor', name: 'monitor', component: Monitor },
     { path: '/schedule', name: 'schedule', component: Schedule },
     { path: '/terminal', name: 'terminal', component: TerminalView },
+    { path: '/settings', name: 'settings', component: Settings },
+    { path: '/logs', name: 'logs', component: Logs },
     { path: '/task-queue', name: 'taskQueue', component: TaskQueue },
   ],
 });

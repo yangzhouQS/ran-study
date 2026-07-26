@@ -1,8 +1,16 @@
 import { defineComponent, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { RingProgress } from '@antv/g2plot';
-import { getSystemStats } from '@/api/monitor-api';
+import { ElCard } from 'element-plus';
+import { dashboardSummary, getSystemStats } from '@/api/monitor-api';
+import type { DashboardSummary } from '@/types/api-type';
 
 const fmt = (b: number) => (b / 1024 ** 3).toFixed(1) + ' GB';
+const fmtUptime = (s: number) => {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return d > 0 ? `${d}天${h}时` : h > 0 ? `${h}时${m}分` : `${m}分`;
+};
 
 interface DiskView {
   name: string;
@@ -18,6 +26,7 @@ export default defineComponent({
     const memRef = ref<HTMLDivElement>();
     const diskBoxRef = ref<HTMLDivElement>();
     const disks = ref<DiskView[]>([]);
+    const summary = ref<DashboardSummary | null>(null);
 
     let cpuPlot: RingProgress | null = null;
     let memPlot: RingProgress | null = null;
@@ -88,6 +97,7 @@ export default defineComponent({
           available: d.available,
         }));
         await rebuildDisks();
+        summary.value = await dashboardSummary();
       } catch {
         /* ignore polling errors */
       }
@@ -110,6 +120,32 @@ export default defineComponent({
 
     return () => (
       <div>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {summary.value
+            ? [
+                { label: '已装软件', value: summary.value.installedSoftware },
+                { label: 'MySQL/Redis', value: summary.value.mysqlCount + summary.value.redisCount },
+                { label: 'Node 版本', value: summary.value.nodeVersions },
+                { label: 'PM2 应用', value: summary.value.pm2Apps },
+                { label: '计划任务', value: summary.value.scheduledTasks },
+                { label: '运行任务', value: summary.value.runningTasks },
+                { label: '系统运行', value: fmtUptime(summary.value.uptime) },
+              ].map((c) => (
+                <ElCard
+                  key={c.label}
+                  shadow="never"
+                  bodyStyle={{ padding: '12px 16px' }}
+                  style={{ minWidth: '120px', borderRadius: '10px' }}
+                >
+                  <div style={{ fontSize: '12px', color: '#909399' }}>{c.label}</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1f6feb' }}>
+                    {c.value}
+                  </div>
+                </ElCard>
+              ))
+            : null}
+        </div>
+
         <h3 style={{ margin: '0 0 12px 0' }}>服务器状态</h3>
         <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
           <div ref={cpuRef} style={{ width: '200px', height: '200px' }} />

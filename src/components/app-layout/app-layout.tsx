@@ -14,11 +14,13 @@ import {
   Coin,
   Cpu,
   DataLine,
+  Document,
   Histogram,
   HomeFilled,
   List,
   Monitor,
   Operation,
+  Setting,
   Timer,
 } from '@element-plus/icons-vue';
 import { RouterView } from 'vue-router';
@@ -39,7 +41,9 @@ const MENU: MenuEntry[] = [
   { index: '/monitor', label: '监控', Icon: DataLine },
   { index: '/schedule', label: '计划任务', Icon: Timer },
   { index: '/terminal', label: '终端', Icon: Monitor },
+  { index: '/logs', label: '日志', Icon: Document },
   { index: '/task-queue', label: '任务队列', Icon: List },
+  { index: '/settings', label: '设置', Icon: Setting },
 ];
 
 export default defineComponent({
