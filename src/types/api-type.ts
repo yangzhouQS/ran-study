@@ -50,6 +50,7 @@ export interface InstalledSoftware {
   port: number;
   runMode: RunMode;
   serviceName: string | null;
+  linked?: boolean;
 }
 
 export interface NodeVersion {

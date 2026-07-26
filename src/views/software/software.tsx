@@ -3,6 +3,8 @@ import {
   ElAlert,
   ElButton,
   ElDialog,
+  ElForm,
+  ElFormItem,
   ElInput,
   ElMessage,
   ElOption,
@@ -14,6 +16,7 @@ import {
 import {
   controlSoftware,
   installSoftware,
+  linkSoftware,
   listCatalog,
   readSoftwareConfig,
   uninstallSoftware,
@@ -41,6 +44,17 @@ export default defineComponent({
     const { tasks } = useTaskStream();
     const sel = ref<Record<string, Sel>>({});
     const cfg = reactive({ visible: false, id: 0, name: '', content: '' });
+    const linkVisible = ref(false);
+    const linkForm = reactive({
+      provider: 'mysql',
+      installPath: '',
+      version: '',
+      binPath: '',
+      configPath: '',
+      port: '',
+      serviceName: '',
+      mode: 'Service' as RunMode,
+    });
 
     const selOf = (c: SoftwareCatalog): Sel => {
       if (!sel.value[c.id]) {
@@ -87,6 +101,27 @@ export default defineComponent({
       await writeSoftwareConfig(cfg.id, cfg.content);
       ElMessage.success('配置已保存（需重启该软件生效）');
       cfg.visible = false;
+    };
+    const onLink = async () => {
+      if (!linkForm.installPath) {
+        ElMessage.warning('请填写安装目录');
+        return;
+      }
+      await linkSoftware({
+        provider: linkForm.provider,
+        installPath: linkForm.installPath,
+        version: linkForm.version || undefined,
+        binPath: linkForm.binPath || undefined,
+        configPath: linkForm.configPath || undefined,
+        port: linkForm.port ? Number(linkForm.port) : undefined,
+        serviceName: linkForm.serviceName || undefined,
+        runMode: linkForm.mode,
+      });
+      ElMessage.success('已接入');
+      linkVisible.value = false;
+      linkForm.installPath = '';
+      linkForm.serviceName = '';
+      await refresh();
     };
 
     return () => (
@@ -145,9 +180,27 @@ export default defineComponent({
           </ElTableColumn>
         </ElTable>
 
-        <h3 style={{ marginTop: '12px' }}>已安装</h3>
+        <h3 style={{ marginTop: '12px' }}>
+          已安装{' '}
+          <ElButton size="small" type="success" onClick={() => (linkVisible.value = true)}>
+            接入已安装
+          </ElButton>
+        </h3>
         <ElTable data={installed.value}>
-          <ElTableColumn prop="provider" label="软件" width={120} />
+          <ElTableColumn prop="provider" label="软件" width={120}>
+            {{
+              default: (scope: { row: InstalledSoftware }) => (
+                <span>
+                  {scope.row.provider}
+                  {scope.row.linked ? (
+                    <ElTag type="warning" size="small" style={{ marginLeft: '6px' }}>
+                      接入
+                    </ElTag>
+                  ) : null}
+                </span>
+              ),
+            }}
+          </ElTableColumn>
           <ElTableColumn prop="version" label="版本" width={140} />
           <ElTableColumn prop="runMode" label="模式" width={100} />
           <ElTableColumn prop="port" label="端口" width={90} />
@@ -217,6 +270,103 @@ export default defineComponent({
             </ElButton>
             <ElButton size="small" type="primary" onClick={saveConfig}>
               保存
+            </ElButton>
+          </div>
+        </ElDialog>
+
+        <ElDialog
+          title="接入已安装"
+          modelValue={linkVisible.value}
+          onUpdate:modelValue={(v: boolean) => {
+            linkVisible.value = v;
+          }}
+          width="640px"
+        >
+          <ElForm labelWidth="100">
+            <ElFormItem label="类型">
+              <ElSelect
+                modelValue={linkForm.provider}
+                onChange={(v: string) => {
+                  linkForm.provider = v;
+                }}
+                size="small"
+                style={{ width: '160px' }}
+              >
+                <ElOption label="MySQL" value="mysql" />
+                <ElOption label="Redis" value="redis" />
+              </ElSelect>
+            </ElFormItem>
+            <ElFormItem label="安装目录">
+              <ElInput
+                modelValue={linkForm.installPath}
+                onInput={(v: string) => {
+                  linkForm.installPath = v;
+                }}
+                placeholder="如 D:\mysql-8.0 或 C:\Program Files\Redis"
+              />
+            </ElFormItem>
+            <ElFormItem label="版本(可选)">
+              <ElInput
+                modelValue={linkForm.version}
+                onInput={(v: string) => {
+                  linkForm.version = v;
+                }}
+                placeholder="留空则记为 linked"
+              />
+            </ElFormItem>
+            <ElFormItem label="可执行文件">
+              <ElInput
+                modelValue={linkForm.binPath}
+                onInput={(v: string) => {
+                  linkForm.binPath = v;
+                }}
+                placeholder="留空按默认推导（mysql: bin/mysqld.exe；redis: redis-server.exe）"
+              />
+            </ElFormItem>
+            <ElFormItem label="配置文件">
+              <ElInput
+                modelValue={linkForm.configPath}
+                onInput={(v: string) => {
+                  linkForm.configPath = v;
+                }}
+                placeholder="留空按默认推导（my.ini / redis.conf）"
+              />
+            </ElFormItem>
+            <ElFormItem label="端口">
+              <ElInput
+                modelValue={linkForm.port}
+                onInput={(v: string) => {
+                  linkForm.port = v;
+                }}
+                placeholder="留空用默认（3306 / 6379）"
+              />
+            </ElFormItem>
+            <ElFormItem label="模式">
+              <ElSelect
+                modelValue={linkForm.mode}
+                onChange={(v: RunMode) => {
+                  linkForm.mode = v;
+                }}
+                size="small"
+                style={{ width: '140px' }}
+              >
+                <ElOption label="服务（推荐外部实例）" value="Service" />
+                <ElOption label="便携进程" value="Portable" />
+              </ElSelect>
+            </ElFormItem>
+            <ElFormItem label="服务名">
+              <ElInput
+                modelValue={linkForm.serviceName}
+                onInput={(v: string) => {
+                  linkForm.serviceName = v;
+                }}
+                placeholder="服务模式必填，如 MySQL80 / Redis"
+              />
+            </ElFormItem>
+          </ElForm>
+          <div style={{ textAlign: 'right' }}>
+            <ElButton size="small" type="primary" onClick={onLink}>
+              接入
             </ElButton>
           </div>
         </ElDialog>

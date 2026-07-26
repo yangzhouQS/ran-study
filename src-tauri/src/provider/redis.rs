@@ -102,6 +102,7 @@ impl SoftwareProvider for RedisProvider {
             port: DEFAULT_PORT,
             run_mode,
             service_name: svc,
+            linked: false,
         })
     }
 

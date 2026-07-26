@@ -117,6 +117,7 @@ mod tests {
             port: 3306,
             run_mode: RunMode::Service,
             service_name: svc.map(String::from),
+            linked: false,
         }
     }
 

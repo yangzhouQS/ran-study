@@ -194,6 +194,7 @@ pub fn create_instance(spec: &SoftwareSpec, name: &str, port: u16, run_mode: Run
                 port,
                 run_mode,
                 service_name: Some(svc.clone()),
+                linked: false,
             };
             if let Ok(sc) = elevation::sidecar_path() {
                 let args = elevation::build_service_install_args(&fake);
@@ -262,6 +263,7 @@ pub fn delete_instance(spec: &SoftwareSpec, inst: &InstanceCreated) -> RanResult
                 port: inst.port,
                 run_mode: RunMode::Service,
                 service_name: Some(svc.clone()),
+                linked: false,
             };
             let _ = elevation::run_elevated(sc.to_str().unwrap(), &elevation::build_service_remove_args(&fake));
         }

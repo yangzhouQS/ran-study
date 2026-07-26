@@ -47,6 +47,9 @@ pub struct SoftwareSpec {
     pub port: u16,
     pub run_mode: RunMode,
     pub service_name: Option<String>,
+    /// true = 外部接入（不下载、卸载只删登记不删文件）
+    #[serde(default)]
+    pub linked: bool,
 }
 
 /// 进度回调：(百分比, 消息)

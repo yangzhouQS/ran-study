@@ -106,6 +106,7 @@ impl SoftwareProvider for MysqlProvider {
             port: DEFAULT_PORT,
             run_mode,
             service_name: svc,
+            linked: false,
         })
     }
 

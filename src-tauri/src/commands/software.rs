@@ -2,6 +2,7 @@ use super::AppState;
 use crate::elevation;
 use crate::error::{RanError, RanResult};
 use crate::provider::{Manifest, RunMode, RunStatus, SoftwareSpec};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::async_runtime;
 use tauri::{AppHandle, Emitter, State};
@@ -86,6 +87,61 @@ pub async fn install_software(
     Ok(task.id)
 }
 
+/// 接入已安装的外部软件（不下载，仅登记到库，可启停/查看状态）
+#[tauri::command]
+pub fn link_software(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    provider: String,
+    install_path: String,
+    version: Option<String>,
+    bin_path: Option<String>,
+    config_path: Option<String>,
+    port: Option<u16>,
+    service_name: Option<String>,
+    run_mode: RunMode,
+) -> RanResult<i64> {
+    let inst = PathBuf::from(&install_path);
+    let bin = match bin_path {
+        Some(b) if !b.is_empty() => PathBuf::from(b),
+        _ => match provider.as_str() {
+            "mysql" => inst.join("bin").join("mysqld.exe"),
+            _ => inst.join("redis-server.exe"),
+        },
+    };
+    if !bin.exists() {
+        return Err(RanError::Other(format!("未找到可执行文件: {}", bin.display())));
+    }
+    let cfg = match config_path {
+        Some(c) if !c.is_empty() => PathBuf::from(c),
+        _ => match provider.as_str() {
+            "mysql" => inst.join("my.ini"),
+            _ => inst.join("redis.conf"),
+        },
+    };
+    let p = port.unwrap_or_else(|| match provider.as_str() {
+        "mysql" => 3306,
+        _ => 6379,
+    });
+    let spec = SoftwareSpec {
+        id: 0,
+        provider: provider.clone(),
+        version: version.unwrap_or_else(|| "linked".into()),
+        install_path: inst,
+        bin_path: bin,
+        data_path: PathBuf::new(),
+        config_path: cfg,
+        port: p,
+        run_mode,
+        service_name,
+        linked: true,
+    };
+    let id = state.repo.insert_software(&spec)?;
+    crate::logs::audit(&state.root, "link", &format!("{}@{}", provider, spec.version));
+    let _ = app.emit("software://changed", ());
+    Ok(id)
+}
+
 #[tauri::command]
 pub async fn control_software(
     state: State<'_, Arc<AppState>>,
@@ -104,23 +160,54 @@ pub async fn control_software(
         .unwrap()
         .get(&spec.provider)
         .ok_or_else(|| RanError::NotFound(spec.provider.clone()))?;
+    let linked_svc = if spec.linked {
+        spec.service_name.clone()
+    } else {
+        None
+    };
+    let cur_status = || async {
+        if let Some(svc) = &linked_svc {
+            let t = crate::provider::service::sc_query_status(svc)?;
+            Ok(if crate::provider::service::parse_running(&t) {
+                RunStatus::Running
+            } else {
+                RunStatus::Stopped
+            })
+        } else if spec.linked {
+            Ok(if crate::download::port_open("127.0.0.1", spec.port) {
+                RunStatus::Running
+            } else {
+                RunStatus::Stopped
+            })
+        } else {
+            prov.status(&spec).await
+        }
+    };
     match action.as_str() {
         "start" => {
-            prov.start(&spec).await?;
-            let s = prov.status(&spec).await?;
+            if let Some(svc) = &linked_svc {
+                crate::provider::service::sc_start(svc)?;
+            } else {
+                prov.start(&spec).await?;
+            }
+            let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "start", &format!("{}@{}", spec.provider, spec.version));
             Ok(s)
         }
         "stop" => {
-            prov.stop(&spec).await?;
-            let s = prov.status(&spec).await?;
+            if let Some(svc) = &linked_svc {
+                crate::provider::service::sc_stop(svc)?;
+            } else {
+                prov.stop(&spec).await?;
+            }
+            let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "stop", &format!("{}@{}", spec.provider, spec.version));
             Ok(s)
         }
         "status" => {
-            let s = prov.status(&spec).await?;
+            let s = cur_status().await?;
             upd(&state.repo, id, s);
             Ok(s)
         }
@@ -136,6 +223,17 @@ pub async fn uninstall_software(state: State<'_, Arc<AppState>>, id: i64) -> Ran
         .into_iter()
         .find(|s| s.id == id)
         .ok_or_else(|| RanError::NotFound(format!("software {id}")))?;
+    if spec.linked {
+        // 外部接入：仅停止服务、删除登记，不删除原始文件
+        if spec.run_mode == RunMode::Service {
+            if let Some(svc) = &spec.service_name {
+                let _ = crate::provider::service::sc_stop(svc);
+            }
+        }
+        state.repo.delete_software(id)?;
+        crate::logs::audit(&state.root, "unlink", &format!("{}@{}", spec.provider, spec.version));
+        return Ok(());
+    }
     let prov = state
         .providers
         .lock()

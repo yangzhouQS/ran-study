@@ -24,7 +24,8 @@ impl Repo {
             "CREATE TABLE IF NOT EXISTS software(
                 id INTEGER PRIMARY KEY,
                 type TEXT, version TEXT, install_path TEXT, data_path TEXT,
-                run_mode TEXT, service_name TEXT, status TEXT, is_active INTEGER)",
+                run_mode TEXT, service_name TEXT, status TEXT, is_active INTEGER,
+                bin_path TEXT, config_path TEXT, port INTEGER, linked INTEGER)",
             "CREATE TABLE IF NOT EXISTS instances(
                 id INTEGER PRIMARY KEY, software_id INTEGER, name TEXT,
                 port INTEGER, config_path TEXT, pid INTEGER, status TEXT)",
@@ -49,14 +50,23 @@ impl Repo {
         ] {
             conn.execute(sql, [])?;
         }
+        // 兼容旧库：补 software 表新增列
+        for sql in [
+            "ALTER TABLE software ADD COLUMN bin_path TEXT",
+            "ALTER TABLE software ADD COLUMN config_path TEXT",
+            "ALTER TABLE software ADD COLUMN port INTEGER",
+            "ALTER TABLE software ADD COLUMN linked INTEGER",
+        ] {
+            let _ = conn.execute(sql, []);
+        }
         Ok(())
     }
 
     pub fn insert_software(&self, spec: &SoftwareSpec) -> RanResult<i64> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO software(type,version,install_path,data_path,run_mode,service_name,status,is_active)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,1)",
+            "INSERT INTO software(type,version,install_path,data_path,run_mode,service_name,status,is_active,bin_path,config_path,port,linked)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,1,?8,?9,?10,?11)",
             rusqlite::params![
                 spec.provider,
                 spec.version,
@@ -65,6 +75,10 @@ impl Repo {
                 run_mode_str(spec.run_mode),
                 spec.service_name.as_deref().unwrap_or(""),
                 "stopped",
+                spec.bin_path.to_string_lossy(),
+                spec.config_path.to_string_lossy(),
+                spec.port,
+                if spec.linked { 1 } else { 0 },
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -72,8 +86,9 @@ impl Repo {
 
     pub fn list_software(&self) -> RanResult<Vec<SoftwareSpec>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt =
-            conn.prepare("SELECT id,type,version,install_path,data_path,run_mode,service_name FROM software")?;
+        let mut stmt = conn.prepare(
+            "SELECT id,type,version,install_path,data_path,run_mode,service_name,bin_path,config_path,port,linked FROM software",
+        )?;
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, i64>(0)?,
@@ -83,23 +98,43 @@ impl Repo {
                 r.get::<_, String>(4)?,
                 r.get::<_, String>(5)?,
                 r.get::<_, String>(6)?,
+                r.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                r.get::<_, Option<String>>(8)?.unwrap_or_default(),
+                r.get::<_, Option<i64>>(9)?.unwrap_or(0),
+                r.get::<_, Option<i64>>(10)?.unwrap_or(0),
             ))
         })?;
         let mut out = Vec::new();
         for row in rows {
-            let (id, prov, ver, inst, data, rm, svc) = row?;
+            let (id, prov, ver, inst, data, rm, svc, bin_s, cfg_s, port_v, linked_v) = row?;
             let inst_p = PathBuf::from(&inst);
+            let bin_path = if bin_s.is_empty() {
+                bin_for_provider(&prov, &inst_p)
+            } else {
+                PathBuf::from(&bin_s)
+            };
+            let config_path = if cfg_s.is_empty() {
+                config_for_provider(&prov, &inst_p)
+            } else {
+                PathBuf::from(&cfg_s)
+            };
+            let port = if port_v > 0 {
+                port_v as u16
+            } else {
+                default_port(&prov)
+            };
             out.push(SoftwareSpec {
                 id,
                 provider: prov.clone(),
                 version: ver,
-                bin_path: bin_for_provider(&prov, &inst_p),
+                bin_path,
                 install_path: inst_p.clone(),
                 data_path: PathBuf::from(&data),
-                config_path: config_for_provider(&prov, &inst_p),
-                port: default_port(&prov),
+                config_path,
+                port,
                 run_mode: parse_run_mode(&rm),
                 service_name: if svc.is_empty() { None } else { Some(svc) },
+                linked: linked_v != 0,
             });
         }
         Ok(out)
