@@ -32,7 +32,7 @@ export const updateSoftware = (params: {
   serviceName: string | null;
   runMode: RunMode;
 }) => invoke<void>('update_software', params);
-export const controlSoftware = (id: number, action: 'start' | 'stop' | 'status') =>
+export const controlSoftware = (id: number, action: 'start' | 'stop' | 'restart' | 'status') =>
   invoke<RunStatus>('control_software', { id, action });
 export const uninstallSoftware = (id: number) => invoke<void>('uninstall_software', { id });
 export const readSoftwareConfig = (id: number) =>

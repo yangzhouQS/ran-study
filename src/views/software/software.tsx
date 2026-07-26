@@ -97,7 +97,7 @@ export default defineComponent({
       await installSoftware(c.id, s.version, s.mode);
       ElMessage.success(`已提交安装 ${c.id}@${s.version}`);
     };
-    const act = async (id: number, a: 'start' | 'stop') => {
+    const act = async (id: number, a: 'start' | 'stop' | 'restart') => {
       await controlSoftware(id, a);
       await refresh();
     };
@@ -296,12 +296,15 @@ export default defineComponent({
           <ElTableColumn prop="version" label="版本" width={140} />
           <ElTableColumn prop="runMode" label="模式" width={100} />
           <ElTableColumn prop="port" label="端口" width={90} />
-          <ElTableColumn label="操作" width={400}>
+          <ElTableColumn label="操作" width={460}>
             {{
               default: (scope: { row: InstalledSoftware }) => (
                 <span>
                   <ElButton size="small" onClick={() => act(scope.row.id, 'start')}>
                     启动
+                  </ElButton>
+                  <ElButton size="small" onClick={() => act(scope.row.id, 'restart')}>
+                    重启
                   </ElButton>
                   <ElButton size="small" onClick={() => act(scope.row.id, 'stop')}>
                     停止

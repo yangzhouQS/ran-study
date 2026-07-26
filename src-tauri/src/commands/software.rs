@@ -245,6 +245,26 @@ pub async fn control_software(
             crate::logs::audit(&state.root, "stop", &format!("{}@{}", spec.provider, spec.version));
             Ok(s)
         }
+        "restart" => {
+            // 先停止
+            if let Some(svc) = &linked_svc {
+                crate::provider::service::sc_stop(svc)?;
+            } else {
+                prov.stop(&spec).await?;
+            }
+            // 等待进程/服务真正退出，避免端口/资源冲突
+            tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+            // 再启动
+            if let Some(svc) = &linked_svc {
+                crate::provider::service::sc_start(svc)?;
+            } else {
+                prov.start(&spec).await?;
+            }
+            let s = cur_status().await?;
+            upd(&state.repo, id, s);
+            crate::logs::audit(&state.root, "restart", &format!("{}@{}", spec.provider, spec.version));
+            Ok(s)
+        }
         "status" => {
             let s = cur_status().await?;
             upd(&state.repo, id, s);
