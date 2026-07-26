@@ -7,8 +7,14 @@ pub fn build_sidecar_args(op: &str, target: &str) -> Vec<String> {
     vec!["--op".into(), op.into(), "--target".into(), target.into()]
 }
 
-/// 定位 ran-sidecar.exe：与当前 exe 同目录（dev: target/debug）
+/// 定位 ran-sidecar.exe：优先 env（release 资源目录），回退 exe 同目录（dev）
 pub fn sidecar_path() -> RanResult<PathBuf> {
+    if let Ok(p) = std::env::var("RAN_SIDECAR_PATH") {
+        let p = PathBuf::from(p);
+        if p.exists() {
+            return Ok(p);
+        }
+    }
     let exe =
         std::env::current_exe().map_err(|e| crate::error::RanError::Other(e.to_string()))?;
     let dir = exe

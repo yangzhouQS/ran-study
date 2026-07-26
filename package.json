@@ -8,7 +8,9 @@
     "build": "rsbuild build",
     "preview": "rsbuild preview",
     "tauri:dev": "tauri dev",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "copy:sidecar": "node -e \"const fs=require('fs'),p=require('path');try{fs.mkdirSync('src-tauri/binaries',{recursive:true});fs.copyFileSync('src-tauri/target/release/ran-sidecar.exe','src-tauri/binaries/ran-sidecar-x86_64-pc-windows-msvc.exe');console.log('sidecar copied')}catch(e){console.warn('sidecar not found, run cargo build --release first')};\"",
+    "tauri:build": "pnpm copy:sidecar && tauri build"
   },
   "dependencies": {
     "@antv/g2plot": "^2.4.35",

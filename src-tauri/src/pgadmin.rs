@@ -74,14 +74,23 @@ pub fn create_database(
     name: &str,
     user_pw: &Option<String>,
 ) -> RanResult<()> {
+    validate_identifier(name)?;
     let mut sql = format!("CREATE DATABASE \"{}\";", name);
     if let Some(p) = user_pw {
-        sql.push_str(&format!(
-            "CREATE ROLE \"{}\" LOGIN PASSWORD '{}';",
-            name, p
-        ));
+        let esc = p.replace('\'', "''");
+        sql.push_str(&format!("CREATE ROLE \"{}\" LOGIN PASSWORD '{}';", name, esc));
     }
     run_query(spec, pw, &sql)?;
+    Ok(())
+}
+
+fn validate_identifier(name: &str) -> RanResult<()> {
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(RanError::Other(format!(
+            "非法名称 '{}'：仅允许字母、数字、下划线",
+            name
+        )));
+    }
     Ok(())
 }
 

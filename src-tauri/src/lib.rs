@@ -68,6 +68,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
+            // release 环境：从资源目录解析 sidecar 路径
+            if let Ok(res_dir) = app.path().resource_dir() {
+                let sc = res_dir.join(if cfg!(windows) {
+                    "ran-sidecar.exe"
+                } else {
+                    "ran-sidecar"
+                });
+                if sc.exists() {
+                    std::env::set_var("RAN_SIDECAR_PATH", &sc);
+                }
+            }
             // 后台监控采样：每 10s 落库 + 清理 7 天前
             let st: tauri::State<'_, Arc<commands::AppState>> =
                 app.state::<Arc<commands::AppState>>();

@@ -72,20 +72,37 @@ pub fn create_database(
     name: &str,
     user_pw: &Option<String>,
 ) -> RanResult<()> {
+    validate_identifier(name)?;
     let mut sql = format!(
-        "CREATE DATABASE IF NOT EXISTS `{n}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
-        n = name
+        "CREATE DATABASE IF NOT EXISTS `{}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+        name
     );
     if let Some(p) = user_pw {
+        let esc = escape_sql_str(p);
         sql.push_str(&format!(
-            "CREATE USER IF NOT EXISTS '{n}'@'localhost' IDENTIFIED BY '{p}'; \
-             GRANT ALL PRIVILEGES ON `{n}`.* TO '{n}'@'localhost'; FLUSH PRIVILEGES;",
-            n = name,
-            p = p
+            "CREATE USER IF NOT EXISTS '{}'@'localhost' IDENTIFIED BY '{}'; \
+             GRANT ALL PRIVILEGES ON `{}`.* TO '{}'@'localhost'; FLUSH PRIVILEGES;",
+            name, esc, name, name
         ));
     }
     run_query(spec, pw, &sql)?;
     Ok(())
+}
+
+/// SQL 标识符校验：仅允许字母/数字/下划线
+fn validate_identifier(name: &str) -> RanResult<()> {
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(RanError::Other(format!(
+            "非法名称 '{}'：仅允许字母、数字、下划线",
+            name
+        )));
+    }
+    Ok(())
+}
+
+/// 转义 SQL 字符串中的单引号和反斜杠
+fn escape_sql_str(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\'', "\'\'")
 }
 
 pub fn change_root_password(spec: &SoftwareSpec, old_pw: &str, new_pw: &str) -> RanResult<()> {
