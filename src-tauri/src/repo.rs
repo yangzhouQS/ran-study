@@ -43,6 +43,9 @@ impl Repo {
                 software_id INTEGER PRIMARY KEY, root_password TEXT)",
             "CREATE TABLE IF NOT EXISTS monitor_samples(
                 ts INTEGER PRIMARY KEY, cpu REAL, mem_used INTEGER, mem_total INTEGER, procs TEXT)",
+            "CREATE TABLE IF NOT EXISTS custom_apps(
+                id INTEGER PRIMARY KEY, name TEXT, exe TEXT, args TEXT, cwd TEXT,
+                service_name TEXT, pid INTEGER, status TEXT)",
         ] {
             conn.execute(sql, [])?;
         }
@@ -296,6 +299,24 @@ impl Repo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CustomAppRow {
+    #[serde(default)]
+    pub id: i64,
+    pub name: String,
+    pub exe: String,
+    #[serde(default)]
+    pub args: String,
+    #[serde(default)]
+    pub cwd: String,
+    pub service_name: Option<String>,
+    #[serde(default)]
+    pub pid: i64,
+    #[serde(default)]
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MonitorSampleRow {
     pub ts: i64,
     pub cpu: f32,
@@ -402,6 +423,59 @@ impl Repo {
             .lock()
             .unwrap()
             .execute("DELETE FROM instances WHERE id=?1", rusqlite::params![id])?;
+        Ok(())
+    }
+
+    pub fn insert_custom_app(&self, row: &CustomAppRow) -> RanResult<i64> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "INSERT INTO custom_apps(name,exe,args,cwd,service_name,pid,status)
+             VALUES (?1,?2,?3,?4,?5,0,'stopped')",
+            rusqlite::params![
+                row.name,
+                row.exe,
+                row.args,
+                row.cwd,
+                row.service_name.as_deref().unwrap_or(""),
+            ],
+        )?;
+        Ok(c.last_insert_rowid())
+    }
+    pub fn list_custom_apps(&self) -> RanResult<Vec<CustomAppRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT id,name,exe,args,cwd,service_name,pid,status FROM custom_apps")?;
+        let rows = stmt.query_map([], |r| {
+            let svc: String = r.get::<_, Option<String>>(5)?.unwrap_or_default();
+            Ok(CustomAppRow {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                exe: r.get(2)?,
+                args: r.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                cwd: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                service_name: if svc.is_empty() { None } else { Some(svc) },
+                pid: r.get::<_, Option<i64>>(6)?.unwrap_or(0),
+                status: r.get::<_, Option<String>>(7)?.unwrap_or_default(),
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+    pub fn update_custom_app(&self, id: i64, pid: i64, status: &str) -> RanResult<()> {
+        self.conn.lock().unwrap().execute(
+            "UPDATE custom_apps SET pid=?1, status=?2 WHERE id=?3",
+            rusqlite::params![pid, status, id],
+        )?;
+        Ok(())
+    }
+    pub fn delete_custom_app(&self, id: i64) -> RanResult<()> {
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM custom_apps WHERE id=?1", rusqlite::params![id])?;
         Ok(())
     }
 }

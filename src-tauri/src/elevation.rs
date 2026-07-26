@@ -59,6 +59,35 @@ pub fn build_service_remove_args(spec: &SoftwareSpec) -> Vec<String> {
     ]
 }
 
+/// 自定义应用通用 nssm 注册参数（exe + args + cwd）
+pub fn build_nssm_install_args(svc: &str, exe: &str, args: &str, cwd: &str) -> Vec<String> {
+    vec![
+        "--op".into(),
+        "service_install".into(),
+        "--kind".into(),
+        "nssm".into(),
+        "--svc".into(),
+        svc.into(),
+        "--exe".into(),
+        exe.into(),
+        "--cfg".into(),
+        cwd.into(),
+        "--extra".into(),
+        args.into(),
+    ]
+}
+
+pub fn build_nssm_remove_args(svc: &str) -> Vec<String> {
+    vec![
+        "--op".into(),
+        "service_remove".into(),
+        "--kind".into(),
+        "nssm".into(),
+        "--svc".into(),
+        svc.into(),
+    ]
+}
+
 /// 以管理员身份拉起 sidecar（触发系统 UAC）
 pub fn run_elevated(sidecar_exe: &str, args: &[String]) -> RanResult<()> {
     let mut cmd = runas::Command::new(sidecar_exe);

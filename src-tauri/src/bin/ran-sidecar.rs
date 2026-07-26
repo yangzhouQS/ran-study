@@ -60,6 +60,26 @@ fn install_nssm(a: &HashMap<String, String>, svc: &str) -> i32 {
     )
 }
 
+/// 通用 nssm 注册：nssm install <svc> <exe> [args...]，再 set AppDirectory <cwd>
+fn install_nssm_generic(a: &HashMap<String, String>, svc: &str) -> i32 {
+    let exe = a.get("exe").cloned().unwrap_or_default();
+    let args = a.get("extra").cloned().unwrap_or_default();
+    let cwd = a.get("cfg").cloned().unwrap_or_default();
+    let nssm = nssm_path();
+    let mut s = Command::new(&nssm);
+    s.arg("install").arg(svc).arg(&exe);
+    for ar in args.split_whitespace() {
+        s.arg(ar);
+    }
+    let code = status_code(s.status());
+    if !cwd.is_empty() {
+        let _ = Command::new(&nssm)
+            .args(["set", svc, "AppDirectory", &cwd])
+            .status();
+    }
+    code
+}
+
 fn remove_sc(svc: &str) -> i32 {
     let _ = Command::new("sc").args(["stop", svc]).status();
     status_code(Command::new("sc").args(["delete", svc]).status())
@@ -83,6 +103,7 @@ fn main() {
     let code = match (op.as_str(), kind.as_str()) {
         ("service_install", "sc_mysql") => install_sc_mysql(&a, &svc),
         ("service_install", "nssm_redis") => install_nssm(&a, &svc),
+        ("service_install", "nssm") => install_nssm_generic(&a, &svc),
         ("service_install", _) => install_sc_generic(&a, &svc),
         ("service_remove", "nssm") => remove_nssm(&svc),
         ("service_remove", _) => remove_sc(&svc),

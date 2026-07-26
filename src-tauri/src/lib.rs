@@ -17,6 +17,7 @@ mod task;
 mod terminal;
 mod redis_admin;
 mod logs;
+mod apps;
 
 use commands::system::{
     get_settings, get_system_info, init_root, set_root_dir, update_settings,
@@ -160,6 +161,12 @@ pub fn run() {
             commands::redis_admin::redis_change_password,
             commands::logs::list_log_files,
             commands::logs::read_log_file,
+            commands::apps::list_custom_apps,
+            commands::apps::add_custom_app,
+            commands::apps::start_custom_app,
+            commands::apps::stop_custom_app,
+            commands::apps::status_custom_app,
+            commands::apps::delete_custom_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
