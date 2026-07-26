@@ -57,7 +57,18 @@ pub fn sc_start(svc: &str) -> RanResult<()> {
     );
     let lower = text.to_ascii_lowercase();
     if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
-        return Err(RanError::Other(format!("sc start {svc}: {}", text.trim())));
+        // 权限不足等原因，经 UAC 提升后重试
+        let st = runas::Command::new("sc")
+            .arg("start")
+            .arg(svc)
+            .status()
+            .map_err(|e| RanError::Other(format!("sc start {svc} 提升失败: {e}")))?;
+        if !st.success() {
+            return Err(RanError::Other(format!(
+                "sc start {svc} 失败:\n{}",
+                text.trim()
+            )));
+        }
     }
     Ok(())
 }
@@ -73,7 +84,17 @@ pub fn sc_stop(svc: &str) -> RanResult<()> {
     );
     let lower = text.to_ascii_lowercase();
     if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
-        return Err(RanError::Other(format!("sc stop {svc}: {}", text.trim())));
+        let st = runas::Command::new("sc")
+            .arg("stop")
+            .arg(svc)
+            .status()
+            .map_err(|e| RanError::Other(format!("sc stop {svc} 提升失败: {e}")))?;
+        if !st.success() {
+            return Err(RanError::Other(format!(
+                "sc stop {svc} 失败:\n{}",
+                text.trim()
+            )));
+        }
     }
     Ok(())
 }
