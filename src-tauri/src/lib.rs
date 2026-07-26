@@ -105,6 +105,29 @@ pub fn run() {
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let state = window.state::<Arc<commands::AppState>>();
+                let st = state.inner();
+                if let Ok(specs) = st.repo.list_software() {
+                    for s in &specs {
+                        if s.run_mode == provider::RunMode::Portable
+                            && !s.linked
+                            && crate::download::port_open("127.0.0.1", s.port)
+                        {
+                            crate::logs::audit(
+                                &st.root,
+                                "exit_warning",
+                                &format!(
+                                    "便携进程仍在运行: {}@{} 端口:{}",
+                                    s.provider, s.version, s.port
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             init_root,
