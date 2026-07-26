@@ -24,6 +24,25 @@ pub fn list_installed(state: State<'_, Arc<AppState>>) -> RanResult<Vec<Software
     state.repo.list_software()
 }
 
+/// 批量检测所有已登记软件的运行状态（服务→sc query，便携→端口探测）
+#[tauri::command]
+pub fn check_all_status(state: State<'_, Arc<AppState>>) -> RanResult<Vec<(i64, bool)>> {
+    let specs = state.repo.list_software()?;
+    let mut out = Vec::new();
+    for spec in specs {
+        let running = if let Some(svc) = &spec.service_name {
+            match crate::provider::service::sc_query_status(svc) {
+                Ok(t) => crate::provider::service::parse_running(&t),
+                Err(_) => false,
+            }
+        } else {
+            crate::download::port_open("127.0.0.1", spec.port)
+        };
+        out.push((spec.id, running));
+    }
+    Ok(out)
+}
+
 #[tauri::command]
 pub async fn install_software(
     app: AppHandle,

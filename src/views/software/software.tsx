@@ -1,4 +1,4 @@
-import { defineComponent, onMounted, reactive, ref } from 'vue';
+import { defineComponent, onMounted, onUnmounted, reactive, ref } from 'vue';
 import {
   ElAlert,
   ElButton,
@@ -16,6 +16,7 @@ import {
 } from 'element-plus';
 import { Document, FolderOpened } from '@element-plus/icons-vue';
 import {
+  checkAllStatus,
   controlSoftware,
   installSoftware,
   linkSoftware,
@@ -78,6 +79,20 @@ export default defineComponent({
       opLogs.value.unshift(`${head}${bin}\n  ${icon} ${result}`);
       if (opLogs.value.length > 80) opLogs.value.pop();
     };
+
+    // 运行状态轮询
+    const statusMap = ref<Record<number, boolean>>({});
+    let statusTimer: number | null = null;
+    const refreshStatus = async () => {
+      try {
+        const list = await checkAllStatus();
+        const map: Record<number, boolean> = {};
+        for (const [id, running] of list) map[id] = running;
+        statusMap.value = map;
+      } catch {
+        /* ignore */
+      }
+    };
     const linkForm = reactive({
       provider: 'mysql',
       installPath: '',
@@ -106,6 +121,11 @@ export default defineComponent({
       initialized.value = info.initialized;
       store.setRootDir(info.rootDir);
       catalog.value = cat;
+      await refreshStatus();
+      statusTimer = window.setInterval(refreshStatus, 5000);
+    });
+    onUnmounted(() => {
+      if (statusTimer) clearInterval(statusTimer);
     });
 
     const doInstall = async (c: SoftwareCatalog) => {
@@ -122,6 +142,7 @@ export default defineComponent({
         logOp(a, row, String(e), false);
       }
       await refresh();
+      await refreshStatus();
     };
     const rm = async (id: number) => {
       const row = installed.value.find((s) => s.id === id);
@@ -132,6 +153,7 @@ export default defineComponent({
         logOp('uninstall', row, String(e), false);
       }
       await refresh();
+      await refreshStatus();
     };
     const openConfig = async (row: InstalledSoftware) => {
       cfg.id = row.id;
@@ -324,6 +346,16 @@ export default defineComponent({
           <ElTableColumn prop="version" label="版本" width={140} />
           <ElTableColumn prop="runMode" label="模式" width={100} />
           <ElTableColumn prop="port" label="端口" width={90} />
+          <ElTableColumn label="状态" width={90}>
+            {{
+              default: (scope: { row: { id: number } }) =>
+                statusMap.value[scope.row.id] ? (
+                  <ElTag type="success">运行</ElTag>
+                ) : (
+                  <ElTag type="info">停止</ElTag>
+                ),
+            }}
+          </ElTableColumn>
           <ElTableColumn label="操作" width={460}>
             {{
               default: (scope: { row: InstalledSoftware }) => (

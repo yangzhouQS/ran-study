@@ -8,6 +8,7 @@ import type {
 
 export const listCatalog = () => invoke<SoftwareCatalog[]>('list_catalog');
 export const listInstalled = () => invoke<InstalledSoftware[]>('list_installed');
+export const checkAllStatus = () => invoke<[number, boolean][]>('check_all_status');
 export const installSoftware = (provider: string, version: string, runMode: RunMode) =>
   invoke<string>('install_software', { provider, version, runMode });
 export const linkSoftware = (params: {

@@ -99,6 +99,7 @@ pub fn run() {
             create_demo_task,
             commands::software::list_catalog,
             commands::software::list_installed,
+            commands::software::check_all_status,
             commands::software::install_software,
             commands::software::control_software,
             commands::software::uninstall_software,
