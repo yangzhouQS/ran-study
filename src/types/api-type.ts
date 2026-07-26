@@ -93,6 +93,7 @@ export interface SvcInfo {
 
 export interface DiskInfo {
   name: string;
+  mountPoint: string;
   total: number;
   available: number;
 }

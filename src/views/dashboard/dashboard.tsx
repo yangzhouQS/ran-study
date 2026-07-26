@@ -6,6 +6,7 @@ const fmt = (b: number) => (b / 1024 ** 3).toFixed(1) + ' GB';
 
 interface DiskView {
   name: string;
+  mountPoint: string;
   total: number;
   available: number;
 }
@@ -66,10 +67,10 @@ export default defineComponent({
         wrap.appendChild(ring);
         const label = document.createElement('div');
         label.style.cssText = 'margin-top:4px;color:#666;font-size:13px;';
-        label.textContent = `${d.name}：${fmt(d.total - d.available)} / ${fmt(d.total)}`;
+        label.textContent = `${d.mountPoint} ${d.name}：${fmt(d.total - d.available)} / ${fmt(d.total)}`;
         wrap.appendChild(label);
         box.appendChild(wrap);
-        const p = makeRing(ring, '', '#5AD8A6');
+        const p = makeRing(ring, d.mountPoint || d.name, '#5AD8A6');
         p.changeData(d.total > 0 ? (d.total - d.available) / d.total : 0);
         diskPlots.set(d.name, p);
       }
@@ -82,6 +83,7 @@ export default defineComponent({
         memPlot?.changeData(s.memTotal > 0 ? s.memUsed / s.memTotal : 0);
         disks.value = s.disks.map((d) => ({
           name: d.name,
+          mountPoint: d.mountPoint,
           total: d.total,
           available: d.available,
         }));

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct DiskInfo {
     pub name: String,
+    pub mount_point: String,
     pub total: u64,
     pub available: u64,
 }
@@ -28,6 +29,7 @@ pub fn snapshot() -> SystemStats {
         .iter()
         .map(|d| DiskInfo {
             name: d.name().to_string_lossy().to_string(),
+            mount_point: d.mount_point().to_string_lossy().to_string(),
             total: d.total_space(),
             available: d.available_space(),
         })
@@ -56,6 +58,7 @@ pub fn sample_with_procs() -> (SystemStats, Vec<ProcInfo>) {
         .iter()
         .map(|d| DiskInfo {
             name: d.name().to_string_lossy().to_string(),
+            mount_point: d.mount_point().to_string_lossy().to_string(),
             total: d.total_space(),
             available: d.available_space(),
         })

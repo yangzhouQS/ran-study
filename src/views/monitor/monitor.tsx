@@ -195,7 +195,7 @@ export default defineComponent({
           return (
             <div key={d.name} style={{ marginBottom: '6px' }}>
               <span>
-                {d.name}：{fmt(used)} / {fmt(d.total)}（{pct.toFixed(0)}%）
+                {d.mountPoint} {d.name}：{fmt(used)} / {fmt(d.total)}（{pct.toFixed(0)}%）
               </span>
             </div>
           );
