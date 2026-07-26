@@ -1,5 +1,6 @@
 import { defineComponent, ref } from 'vue';
-import { ElButton, ElInput, ElMessage } from 'element-plus';
+import { ElButton, ElMessage } from 'element-plus';
+import MonacoEditor from '@/components/monaco-editor/monaco-editor';
 
 export default defineComponent({
   name: 'JsonTool',
@@ -51,12 +52,11 @@ export default defineComponent({
         <div style={{ display: 'flex', gap: '8px' }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '12px', color: '#909399', marginBottom: '4px' }}>输入</div>
-            <ElInput
-              type="textarea"
-              v-model={input.value}
-              rows={14}
-              placeholder='粘贴 JSON，如 {"name":"ran","age":3}'
-              style={{ fontFamily: 'Consolas, monospace', fontSize: '12px' }}
+            <MonacoEditor
+              modelValue={input.value}
+              onUpdate:modelValue={(v: string) => { input.value = v; }}
+              language="json"
+              height="300px"
             />
           </div>
           <div style={{ flex: 1 }}>
@@ -64,12 +64,11 @@ export default defineComponent({
               <span style={{ fontSize: '12px', color: '#909399' }}>输出</span>
               <ElButton text size="small" onClick={copy}>复制</ElButton>
             </div>
-            <ElInput
-              type="textarea"
+            <MonacoEditor
               modelValue={output.value}
-              readonly
-              rows={14}
-              style={{ fontFamily: 'Consolas, monospace', fontSize: '12px' }}
+              language="json"
+              readOnly
+              height="300px"
             />
           </div>
         </div>

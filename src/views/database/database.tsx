@@ -42,6 +42,7 @@ import {
   runPgQuery,
 } from '@/api/pg-api';
 import type { InstalledSoftware, MysqlInstance } from '@/types/api-type';
+import MonacoEditor from '@/components/monaco-editor/monaco-editor';
 
 export default defineComponent({
   name: 'Database',
@@ -345,7 +346,12 @@ export default defineComponent({
             </ElTable>
 
             <h3 style={{ marginTop: '12px' }}>执行 SQL</h3>
-            <ElInput type="textarea" modelValue={sqlForm.sql} onInput={(v: string) => { sqlForm.sql = v; }} rows={3} />
+            <MonacoEditor
+              modelValue={sqlForm.sql}
+              onUpdate:modelValue={(v: string) => { sqlForm.sql = v; }}
+              language="sql"
+              height="100px"
+            />
             <ElButton size="small" type="primary" style={{ marginTop: '8px' }} onClick={onRunSql}>运行</ElButton>
             <pre style={{ marginTop: '8px', background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '240px', overflow: 'auto' }}>{sqlForm.output}</pre>
           </div>
@@ -477,7 +483,12 @@ export default defineComponent({
             </ElTable>
 
             <h3 style={{ marginTop: '12px' }}>执行 SQL（psql）</h3>
-            <ElInput type="textarea" modelValue={pgSql.sql} onInput={(v: string) => { pgSql.sql = v; }} rows={3} />
+            <MonacoEditor
+              modelValue={pgSql.sql}
+              onUpdate:modelValue={(v: string) => { pgSql.sql = v; }}
+              language="sql"
+              height="100px"
+            />
             <ElButton size="small" type="primary" style={{ marginTop: '8px' }} onClick={onRunPgSql}>运行</ElButton>
             <pre style={{ marginTop: '8px', background: '#1e1e1e', color: '#d4d4d4', padding: '8px', maxHeight: '240px', overflow: 'auto' }}>{pgSql.output}</pre>
           </div>

@@ -28,6 +28,7 @@ import {
 } from '@/api/software-api';
 import { getSystemInfo } from '@/api/system-api';
 import { open } from '@tauri-apps/plugin-dialog';
+import MonacoEditor from '@/components/monaco-editor/monaco-editor';
 import { useInstalled } from '@/composables/use-installed';
 import { useTaskStream } from '@/composables/use-task-stream';
 import { useAppStore } from '@/store/app-store';
@@ -456,16 +457,13 @@ export default defineComponent({
           onUpdate:modelValue={(v: boolean) => {
             cfg.visible = v;
           }}
-          width="720px"
+          width="760px"
         >
-          <ElInput
-            type="textarea"
+          <MonacoEditor
             modelValue={cfg.content}
-            onInput={(v: string) => {
-              cfg.content = v;
-            }}
-            rows={18}
-            style={{ fontFamily: 'Consolas, Monaco, monospace', fontSize: '12px' }}
+            onUpdate:modelValue={(v: string) => { cfg.content = v; }}
+            language={cfg.name.includes('redis') ? 'ini' : 'ini'}
+            height="420px"
           />
           <div style={{ marginTop: '8px', textAlign: 'right' }}>
             <ElButton
