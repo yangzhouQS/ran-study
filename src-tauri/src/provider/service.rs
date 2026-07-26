@@ -46,10 +46,36 @@ pub fn sc_query_status(svc: &str) -> RanResult<String> {
 }
 
 pub fn sc_start(svc: &str) -> RanResult<()> {
-    run_ignore("sc", &["start", svc])
+    let out = Command::new("sc")
+        .args(["start", svc])
+        .output()
+        .map_err(|e| RanError::Other(e.to_string()))?;
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let lower = text.to_ascii_lowercase();
+    if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
+        return Err(RanError::Other(format!("sc start {svc}: {}", text.trim())));
+    }
+    Ok(())
 }
 pub fn sc_stop(svc: &str) -> RanResult<()> {
-    run_ignore("sc", &["stop", svc])
+    let out = Command::new("sc")
+        .args(["stop", svc])
+        .output()
+        .map_err(|e| RanError::Other(e.to_string()))?;
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let lower = text.to_ascii_lowercase();
+    if lower.contains("failed") || text.contains("失败") || text.contains("错误") {
+        return Err(RanError::Other(format!("sc stop {svc}: {}", text.trim())));
+    }
+    Ok(())
 }
 
 // ---- nssm（Redis 等无原生服务） ----

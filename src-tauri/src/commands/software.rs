@@ -307,6 +307,8 @@ pub async fn control_software(
             } else {
                 prov.start(&spec).await?;
             }
+            // 等待服务/进程绑定端口后再查状态
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
             let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "start", &format!("{}@{}", spec.provider, spec.version));
@@ -346,6 +348,7 @@ pub async fn control_software(
             } else {
                 prov.start(&spec).await?;
             }
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
             let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "restart", &format!("{}@{}", spec.provider, spec.version));
