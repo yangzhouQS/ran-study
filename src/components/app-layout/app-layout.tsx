@@ -24,7 +24,7 @@ import {
   Setting,
   Timer,
 } from '@element-plus/icons-vue';
-import { RouterView, useRoute } from 'vue-router';
+import { RouterView, useRoute, useRouter } from 'vue-router';
 
 interface MenuEntry {
   index: string;
@@ -52,10 +52,14 @@ export default defineComponent({
   name: 'AppLayout',
   setup() {
     const route = useRoute();
+    const router = useRouter();
+    const onMenuSelect = (index: string) => {
+      router.push(index);
+    };
     return () => (
       <ElContainer style={{ height: '100vh', overflow: 'hidden' }}>
         <ElAside width="208px" style={{ height: '100vh', overflowY: 'auto' }}>
-          <ElMenu router defaultActive={route.path}>
+          <ElMenu defaultActive={route.path} onSelect={onMenuSelect}>
             {MENU.map(({ index, label, Icon }) => (
               <ElMenuItem index={index}>
                 <ElIcon>
