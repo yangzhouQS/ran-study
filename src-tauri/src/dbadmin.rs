@@ -14,15 +14,10 @@ fn mysqldump_exe(spec: &SoftwareSpec) -> PathBuf {
         .join(if cfg!(windows) { "mysqldump.exe" } else { "mysqldump" })
 }
 
-fn base(exe: &Path, spec: &SoftwareSpec, pw: &str) -> Command {
+fn base(exe: &Path, spec: &SoftwareSpec, user: &str, pw: &str) -> Command {
     let mut c = Command::new(exe);
     c.args([
-        "-u",
-        "root",
-        "-h",
-        "127.0.0.1",
-        "-P",
-        &spec.port.to_string(),
+        "-u", user, "-h", "127.0.0.1", "-P", &spec.port.to_string(),
         "--default-character-set=utf8mb4",
     ]);
     if !pw.is_empty() {
@@ -38,15 +33,22 @@ fn check(out: std::process::Output) -> RanResult<String> {
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-pub fn run_query(spec: &SoftwareSpec, pw: &str, sql: &str) -> RanResult<String> {
-    let out = base(&mysql_exe(spec), spec, pw)
+pub fn test_connection(spec: &SoftwareSpec, user: &str, pw: &str) -> RanResult<bool> {
+    let out = base(&mysql_exe(spec), spec, user, pw)
+        .args(["-e", "SELECT 1"])
+        .output()?;
+    Ok(out.status.success())
+}
+
+pub fn run_query(spec: &SoftwareSpec, user: &str, pw: &str, sql: &str) -> RanResult<String> {
+    let out = base(&mysql_exe(spec), spec, user, pw)
         .args(["-e", sql])
         .output()?;
     check(out)
 }
 
-pub fn list_databases(spec: &SoftwareSpec, pw: &str) -> RanResult<Vec<String>> {
-    let text = run_query(spec, pw, "SHOW DATABASES")?;
+pub fn list_databases(spec: &SoftwareSpec, user: &str, pw: &str) -> RanResult<Vec<String>> {
+    let text = run_query(spec, user, pw, "SHOW DATABASES")?;
     Ok(parse_databases(&text))
 }
 
@@ -59,69 +61,62 @@ pub fn parse_databases(text: &str) -> Vec<String> {
 }
 
 fn is_system_db(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "information_schema" | "mysql" | "performance_schema" | "sys"
-    )
+    matches!(name.to_ascii_lowercase().as_str(),
+        "information_schema" | "mysql" | "performance_schema" | "sys")
+}
+
+fn validate_identifier(name: &str) -> RanResult<()> {
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(RanError::Other(format!("非法名称 '{}'", name)));
+    }
+    Ok(())
 }
 
 pub fn create_database(
     spec: &SoftwareSpec,
+    user: &str,
     pw: &str,
     name: &str,
-    user_pw: &Option<String>,
+    new_user: &Option<String>,
+    new_pw: &Option<String>,
 ) -> RanResult<()> {
     validate_identifier(name)?;
     let mut sql = format!(
         "CREATE DATABASE IF NOT EXISTS `{}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
         name
     );
-    if let Some(p) = user_pw {
-        let esc = escape_sql_str(p);
+    if let (Some(un), Some(up)) = (new_user, new_pw) {
+        validate_identifier(un)?;
+        let esc = up.replace('\\', "\\\\").replace('\'', "\'\'");
         sql.push_str(&format!(
-            "CREATE USER IF NOT EXISTS '{}'@'localhost' IDENTIFIED BY '{}'; \
-             GRANT ALL PRIVILEGES ON `{}`.* TO '{}'@'localhost'; FLUSH PRIVILEGES;",
-            name, esc, name, name
+            "CREATE USER IF NOT EXISTS '{}'@'%' IDENTIFIED BY '{}'; \
+             GRANT ALL PRIVILEGES ON `{}`.* TO '{}'@'%'; FLUSH PRIVILEGES;",
+            un, esc, name, un
         ));
     }
-    run_query(spec, pw, &sql)?;
+    run_query(spec, user, pw, &sql)?;
     Ok(())
 }
 
-/// SQL 标识符校验：仅允许字母/数字/下划线
-fn validate_identifier(name: &str) -> RanResult<()> {
-    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(RanError::Other(format!(
-            "非法名称 '{}'：仅允许字母、数字、下划线",
-            name
-        )));
-    }
-    Ok(())
-}
-
-/// 转义 SQL 字符串中的单引号和反斜杠
-fn escape_sql_str(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('\'', "\'\'")
-}
-
-pub fn change_root_password(spec: &SoftwareSpec, old_pw: &str, new_pw: &str) -> RanResult<()> {
+pub fn change_password(
+    spec: &SoftwareSpec,
+    user: &str,
+    pw: &str,
+    target_user: &str,
+    new_pw: &str,
+) -> RanResult<()> {
     run_query(
-        spec,
-        old_pw,
+        spec, user, pw,
         &format!(
-            "ALTER USER 'root'@'localhost' IDENTIFIED BY '{p}'; FLUSH PRIVILEGES;",
-            p = new_pw
+            "ALTER USER '{}'@'%' IDENTIFIED BY '{}'; FLUSH PRIVILEGES;",
+            target_user,
+            new_pw.replace('\'', "\'\'")
         ),
     )?;
     Ok(())
 }
 
-pub fn backup(
-    spec: &SoftwareSpec,
-    pw: &str,
-    db: &str,
-    dest: Option<&Path>,
-) -> RanResult<PathBuf> {
+pub fn backup(spec: &SoftwareSpec, user: &str, pw: &str, db: &str, dest: Option<&Path>) -> RanResult<PathBuf> {
     let dest = match dest {
         Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
         _ => {
@@ -129,9 +124,7 @@ pub fn backup(
             spec.data_path.join(format!("{db}-{ts}.sql"))
         }
     };
-    let out = base(&mysqldump_exe(spec), spec, pw)
-        .args(["--databases", db])
-        .output()?;
+    let out = base(&mysqldump_exe(spec), spec, user, pw).args(["--databases", db]).output()?;
     let dump = check(out)?;
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
@@ -140,9 +133,9 @@ pub fn backup(
     Ok(dest)
 }
 
-pub fn import(spec: &SoftwareSpec, pw: &str, db: &str, src: &Path) -> RanResult<()> {
+pub fn import(spec: &SoftwareSpec, user: &str, pw: &str, db: &str, src: &Path) -> RanResult<()> {
     let f = std::fs::File::open(src)?;
-    let st = base(&mysql_exe(spec), spec, pw)
+    let st = base(&mysql_exe(spec), spec, user, pw)
         .arg(db)
         .stdin(Stdio::from(f))
         .status()?;
@@ -150,14 +143,6 @@ pub fn import(spec: &SoftwareSpec, pw: &str, db: &str, src: &Path) -> RanResult<
         return Err(RanError::Other("mysql 导入失败".into()));
     }
     Ok(())
-}
-
-/// 测试连接：用给定密码执行 SELECT 1
-pub fn test_connection(spec: &SoftwareSpec, pw: &str) -> RanResult<bool> {
-    let out = base(&mysql_exe(spec), spec, pw)
-        .args(["-e", "SELECT 1"])
-        .output()?;
-    Ok(out.status.success())
 }
 
 #[cfg(test)]

@@ -41,7 +41,7 @@ impl Repo {
                 id INTEGER PRIMARY KEY, name TEXT, command TEXT,
                 trigger TEXT, enabled INTEGER, log_path TEXT)",
             "CREATE TABLE IF NOT EXISTS mysql_secrets(
-                software_id INTEGER PRIMARY KEY, root_password TEXT)",
+                software_id INTEGER PRIMARY KEY, root_password TEXT, username TEXT DEFAULT 'root')",
             "CREATE TABLE IF NOT EXISTS monitor_samples(
                 ts INTEGER PRIMARY KEY, cpu REAL, mem_used INTEGER, mem_total INTEGER, procs TEXT)",
             "CREATE TABLE IF NOT EXISTS custom_apps(
@@ -56,6 +56,7 @@ impl Repo {
             "ALTER TABLE software ADD COLUMN config_path TEXT",
             "ALTER TABLE software ADD COLUMN port INTEGER",
             "ALTER TABLE software ADD COLUMN linked INTEGER",
+            "ALTER TABLE mysql_secrets ADD COLUMN username TEXT DEFAULT 'root'",
         ] {
             let _ = conn.execute(sql, []);
         }
@@ -339,33 +340,42 @@ impl Repo {
         Ok(())
     }
 
-    pub fn get_root_pw(&self, software_id: i64) -> RanResult<String> {
+    pub fn get_db_credentials(&self, software_id: i64) -> RanResult<(String, String)> {
         let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
-        let pw: Option<String> = conn
+        let row: Option<(String, String)> = conn
             .query_row(
-                "SELECT root_password FROM mysql_secrets WHERE software_id=?1",
+                "SELECT username, root_password FROM mysql_secrets WHERE software_id=?1",
                 rusqlite::params![software_id],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .ok();
-        let raw = pw.unwrap_or_default();
-        // 兼容旧明文密码：仅 hex 格式才解密
-        if !raw.is_empty()
-            && raw.len() % 2 == 0
-            && raw.chars().all(|c| c.is_ascii_hexdigit())
-        {
-            Ok(crate::crypto::decrypt(&raw))
-        } else {
-            Ok(raw)
+        match row {
+            Some((u, raw)) => {
+                let pw = if !raw.is_empty()
+                    && raw.len() % 2 == 0
+                    && raw.chars().all(|c| c.is_ascii_hexdigit())
+                {
+                    crate::crypto::decrypt(&raw)
+                } else {
+                    raw
+                };
+                Ok((u, pw))
+            }
+            None => Ok((String::new(), String::new())),
         }
     }
 
-    pub fn set_root_pw(&self, software_id: i64, pw: &str) -> RanResult<()> {
+    pub fn set_db_credentials(
+        &self,
+        software_id: i64,
+        username: &str,
+        pw: &str,
+    ) -> RanResult<()> {
         let encrypted = crate::crypto::encrypt(pw);
         self.conn.lock().unwrap_or_else(|e| e.into_inner()).execute(
-            "INSERT INTO mysql_secrets(software_id, root_password) VALUES (?1,?2)
-             ON CONFLICT(software_id) DO UPDATE SET root_password=excluded.root_password",
-            rusqlite::params![software_id, encrypted],
+            "INSERT INTO mysql_secrets(software_id, root_password, username) VALUES (?1,?2,?3)
+             ON CONFLICT(software_id) DO UPDATE SET root_password=excluded.root_password, username=excluded.username",
+            rusqlite::params![software_id, encrypted, username],
         )?;
         Ok(())
     }

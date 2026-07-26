@@ -16,20 +16,24 @@ import {
 import { listInstalled } from '@/api/software-api';
 import {
   backupMysql,
-  changeRootPassword,
+  changeMysqlPassword,
   createMysqlDatabase,
+  getMysqlCredentials,
   importMysql,
   listMysqlDatabases,
   runMysqlQuery,
+  saveMysqlCredentials,
   testMysqlConnection,
 } from '@/api/dbadmin-api';
 import {
   backupPg,
   changePgPassword,
   createPgDatabase,
+  getPgCredentials,
   importPg,
   listPgDatabases,
   runPgQuery,
+  savePgCredentials,
   testPgConnection,
 } from '@/api/pg-api';
 import {
@@ -43,8 +47,6 @@ import {
 import type { InstalledSoftware } from '@/types/api-type';
 import MonacoEditor from '@/components/monaco-editor/monaco-editor';
 
-const SENSITIVE_HINT = '（已保存，输入新密码覆盖）';
-
 export default defineComponent({
   name: 'Database',
   setup() {
@@ -53,8 +55,8 @@ export default defineComponent({
     const selected = ref<InstalledSoftware | null>(null);
 
     // Connection
+    const username = ref('');
     const password = ref('');
-    const hasSavedPw = ref(false);
     const connStatus = ref<'idle' | 'testing' | 'ok' | 'fail'>('idle');
 
     // Data
@@ -90,13 +92,26 @@ export default defineComponent({
       }
     });
 
-    watch(selectedId, (id) => {
+    watch(selectedId, async (id) => {
       selected.value = instances.value.find((i) => i.id === id) ?? null;
       connStatus.value = 'idle';
       databases.value = [];
       keys.value = [];
+      username.value = '';
       password.value = '';
-      hasSavedPw.value = false;
+      if (!id) return;
+      // 加载已存凭证
+      try {
+        if (isMysql()) {
+          const [u, p] = await getMysqlCredentials(id);
+          username.value = u;
+          password.value = p;
+        } else if (isPostgres()) {
+          const [u, p] = await getPgCredentials(id);
+          username.value = u;
+          password.value = p;
+        }
+      } catch { /* ignore */ }
     });
 
     const testConn = async () => {
@@ -104,8 +119,8 @@ export default defineComponent({
       connStatus.value = 'testing';
       try {
         let ok: boolean;
-        if (isMysql()) ok = await testMysqlConnection(selected.value.id, password.value);
-        else if (isPostgres()) ok = await testPgConnection(selected.value.id, password.value);
+        if (isMysql()) ok = await testMysqlConnection(selected.value.id, username.value, password.value);
+        else if (isPostgres()) ok = await testPgConnection(selected.value.id, username.value, password.value);
         else if (isRedis()) {
           await redisRun(selected.value.id, password.value, ['PING']);
           ok = true;
@@ -114,6 +129,9 @@ export default defineComponent({
         connStatus.value = ok ? 'ok' : 'fail';
         if (ok) {
           ElMessage.success('连接成功');
+          // 持久化凭证
+          if (isMysql()) await saveMysqlCredentials(selected.value.id, username.value, password.value);
+          else if (isPostgres()) await savePgCredentials(selected.value.id, username.value, password.value);
           await loadData();
         } else {
           ElMessage.error('连接失败：密码错误或服务未运行');
@@ -153,13 +171,15 @@ export default defineComponent({
           await createMysqlDatabase(
             selected.value.id,
             createDbForm.name,
-            createDbForm.userPw || null,
+            createDbForm.user || undefined,
+            createDbForm.userPw || undefined,
           );
         } else if (isPostgres()) {
           await createPgDatabase(
             selected.value.id,
             createDbForm.name,
-            createDbForm.userPw || null,
+            createDbForm.user || undefined,
+            createDbForm.userPw || undefined,
           );
         }
         ElMessage.success(`数据库 ${createDbForm.name} 创建成功`);
@@ -176,8 +196,8 @@ export default defineComponent({
     const onChangePw = async () => {
       if (!selected.value || !changePwForm.newPassword) return;
       try {
-        if (isMysql()) await changeRootPassword(selected.value.id, changePwForm.newPassword);
-        else if (isPostgres()) await changePgPassword(selected.value.id, changePwForm.newPassword);
+        if (isMysql()) await changeMysqlPassword(selected.value.id, username.value, changePwForm.newPassword);
+        else if (isPostgres()) await changePgPassword(selected.value.id, username.value, changePwForm.newPassword);
         else if (isRedis()) await redisChangePassword(selected.value.id, password.value, changePwForm.newPassword);
         ElMessage.success('密码修改成功');
         password.value = changePwForm.newPassword;
@@ -296,14 +316,24 @@ export default defineComponent({
               </ElTag>
             </div>
             <ElForm labelWidth="80" inline>
-              <ElFormItem label={isRedis() ? '密码' : 'Root 密码'}>
+              <ElFormItem label="用户名">
+                <ElInput
+                  modelValue={username.value}
+                  onUpdate:modelValue={(v: string) => { username.value = v; }}
+                  placeholder={isRedis() ? '（Redis 无用户名）' : '如 root / postgres'}
+                  style={{ width: '160px' }}
+                  disabled={isRedis()}
+                  onKeydown={(e: Event) => { if ((e as KeyboardEvent).key === 'Enter') testConn(); }}
+                />
+              </ElFormItem>
+              <ElFormItem label="密码">
                 <ElInput
                   modelValue={password.value}
                   onUpdate:modelValue={(v: string) => { password.value = v; }}
                   type="password"
                   showPassword
-                  placeholder={hasSavedPw.value ? SENSITIVE_HINT : '输入密码'}
-                  style={{ width: '240px' }}
+                  placeholder="输入密码"
+                  style={{ width: '200px' }}
                   onKeydown={(e: Event) => { if ((e as KeyboardEvent).key === 'Enter') testConn(); }}
                 />
               </ElFormItem>
@@ -447,7 +477,7 @@ export default defineComponent({
               <ElInput modelValue={createDbForm.user} onUpdate:modelValue={(v: string) => { createDbForm.user = v; }} placeholder="留空则不创建用户" />
             </ElFormItem>
             <ElFormItem label="用户密码">
-              <ElInput modelValue={createDbForm.userPw} onUpdate:modelValue={(v: string) => { createDbForm.userPw = v; }} type="password" showPassword placeholder="用户密码" />
+              <ElInput modelValue={createDbForm.userPw} onUpdate:modelValue={(v: string) => { createDbForm.userPw = v; }} type="password" showPassword placeholder="新用户的密码" />
             </ElFormItem>
           </ElForm>
           <div style={{ textAlign: 'right' }}>
