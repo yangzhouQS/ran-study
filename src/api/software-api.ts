@@ -17,6 +17,7 @@ export const linkSoftware = (params: {
   binPath?: string;
   configPath?: string;
   port?: number;
+  dataPath?: string;
   serviceName?: string;
   runMode: RunMode;
 }) => invoke<number>('link_software', params);

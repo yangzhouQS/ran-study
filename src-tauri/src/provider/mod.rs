@@ -77,4 +77,5 @@ pub mod process;
 pub mod service;
 pub mod mysql;
 pub mod redis;
+pub mod postgres;
 pub mod registry;

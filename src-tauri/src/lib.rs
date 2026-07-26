@@ -24,6 +24,7 @@ use commands::system::{
 };
 use commands::task::{create_demo_task, list_tasks};
 use provider::mysql::MysqlProvider;
+use provider::postgres::PostgresProvider;
 use provider::redis::RedisProvider;
 use provider::registry::ProviderRegistry;
 use repo::Repo;
@@ -47,6 +48,7 @@ pub fn run() {
     let mut providers = ProviderRegistry::new();
     providers.register(Arc::new(MysqlProvider));
     providers.register(Arc::new(RedisProvider));
+    providers.register(Arc::new(PostgresProvider));
 
     let state = Arc::new(commands::AppState {
         root: root.clone(),

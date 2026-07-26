@@ -98,6 +98,7 @@ pub fn link_software(
     bin_path: Option<String>,
     config_path: Option<String>,
     port: Option<u16>,
+    data_path: Option<String>,
     service_name: Option<String>,
     run_mode: RunMode,
 ) -> RanResult<i64> {
@@ -106,21 +107,28 @@ pub fn link_software(
         Some(b) if !b.is_empty() => PathBuf::from(b),
         _ => match provider.as_str() {
             "mysql" => inst.join("bin").join("mysqld.exe"),
+            "postgres" => inst.join("bin").join("pg_ctl.exe"),
             _ => inst.join("redis-server.exe"),
         },
     };
     if !bin.exists() {
         return Err(RanError::Other(format!("未找到可执行文件: {}", bin.display())));
     }
+    let data_p = data_path.map(PathBuf::from);
     let cfg = match config_path {
         Some(c) if !c.is_empty() => PathBuf::from(c),
         _ => match provider.as_str() {
             "mysql" => inst.join("my.ini"),
+            "postgres" => data_p
+                .as_ref()
+                .map(|d| d.join("postgresql.conf"))
+                .unwrap_or_default(),
             _ => inst.join("redis.conf"),
         },
     };
     let p = port.unwrap_or_else(|| match provider.as_str() {
         "mysql" => 3306,
+        "postgres" => 5432,
         _ => 6379,
     });
     let spec = SoftwareSpec {
@@ -129,7 +137,7 @@ pub fn link_software(
         version: version.unwrap_or_else(|| "linked".into()),
         install_path: inst,
         bin_path: bin,
-        data_path: PathBuf::new(),
+        data_path: data_p.unwrap_or_default(),
         config_path: cfg,
         port: p,
         run_mode,

@@ -52,6 +52,7 @@ export default defineComponent({
       binPath: '',
       configPath: '',
       port: '',
+      dataPath: '',
       serviceName: '',
       mode: 'Service' as RunMode,
     });
@@ -114,6 +115,7 @@ export default defineComponent({
         binPath: linkForm.binPath || undefined,
         configPath: linkForm.configPath || undefined,
         port: linkForm.port ? Number(linkForm.port) : undefined,
+        dataPath: linkForm.dataPath || undefined,
         serviceName: linkForm.serviceName || undefined,
         runMode: linkForm.mode,
       });
@@ -121,6 +123,7 @@ export default defineComponent({
       linkVisible.value = false;
       linkForm.installPath = '';
       linkForm.serviceName = '';
+      linkForm.dataPath = '';
       await refresh();
     };
 
@@ -294,6 +297,7 @@ export default defineComponent({
               >
                 <ElOption label="MySQL" value="mysql" />
                 <ElOption label="Redis" value="redis" />
+                <ElOption label="PostgreSQL" value="postgres" />
               </ElSelect>
             </ElFormItem>
             <ElFormItem label="安装目录">
@@ -302,9 +306,20 @@ export default defineComponent({
                 onInput={(v: string) => {
                   linkForm.installPath = v;
                 }}
-                placeholder="如 D:\mysql-8.0 或 C:\Program Files\Redis"
+                placeholder="如 D:\mysql-8.0 或 C:\Program Files\Redis 或 D:\pgsql"
               />
             </ElFormItem>
+            {linkForm.provider === 'postgres' ? (
+              <ElFormItem label="数据目录">
+                <ElInput
+                  modelValue={linkForm.dataPath}
+                  onInput={(v: string) => {
+                    linkForm.dataPath = v;
+                  }}
+                  placeholder="PG data 目录，如 D:\pgdata"
+                />
+              </ElFormItem>
+            ) : null}
             <ElFormItem label="版本(可选)">
               <ElInput
                 modelValue={linkForm.version}
