@@ -135,6 +135,14 @@ export default defineComponent({
       const d = await open({ directory: true, multiple: false });
       if (typeof d === 'string') linkForm.dataPath = d;
     };
+    const pickBin = async () => {
+      const f = await open({ directory: false, multiple: false });
+      if (typeof f === 'string') linkForm.binPath = f;
+    };
+    const pickConfig = async () => {
+      const f = await open({ directory: false, multiple: false });
+      if (typeof f === 'string') linkForm.configPath = f;
+    };
 
     return () => (
       <div>
@@ -349,22 +357,32 @@ export default defineComponent({
               />
             </ElFormItem>
             <ElFormItem label="可执行文件">
-              <ElInput
-                modelValue={linkForm.binPath}
-                onInput={(v: string) => {
-                  linkForm.binPath = v;
-                }}
-                placeholder="留空按默认推导（mysql: bin/mysqld.exe；redis: redis-server.exe）"
-              />
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={linkForm.binPath}
+                  onInput={(v: string) => {
+                    linkForm.binPath = v;
+                  }}
+                  placeholder="留空按默认推导（mysql: bin/mysqld.exe；redis: redis-server.exe；pg: bin/pg_ctl.exe）"
+                />
+                <ElButton size="small" onClick={pickBin}>
+                  选择
+                </ElButton>
+              </div>
             </ElFormItem>
             <ElFormItem label="配置文件">
-              <ElInput
-                modelValue={linkForm.configPath}
-                onInput={(v: string) => {
-                  linkForm.configPath = v;
-                }}
-                placeholder="留空按默认推导（my.ini / redis.conf）"
-              />
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <ElInput
+                  modelValue={linkForm.configPath}
+                  onInput={(v: string) => {
+                    linkForm.configPath = v;
+                  }}
+                  placeholder="留空按默认推导（my.ini / redis.conf / postgresql.conf）"
+                />
+                <ElButton size="small" onClick={pickConfig}>
+                  选择
+                </ElButton>
+              </div>
             </ElFormItem>
             <ElFormItem label="端口">
               <ElInput
