@@ -307,9 +307,29 @@ pub async fn control_software(
             } else {
                 prov.start(&spec).await?;
             }
-            // 等待服务/进程绑定端口后再查状态
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            let s = cur_status().await?;
+            // 轮询等待服务/进程就绪（最多 5s = 10 × 500ms）
+            let mut ok = false;
+            for _ in 0..10 {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if let Ok(s) = cur_status().await {
+                    if s == RunStatus::Running {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if !ok {
+                let diag = if let Some(svc) = &linked_svc {
+                    crate::provider::service::sc_query_status(svc).unwrap_or_default()
+                } else {
+                    format!("port :{} not open", spec.port)
+                };
+                return Err(RanError::Other(format!(
+                    "启动后 5s 内服务/进程未就绪:\n{}",
+                    diag.trim()
+                )));
+            }
+            let s = RunStatus::Running;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "start", &format!("{}@{}", spec.provider, spec.version));
             Ok(ControlResult { status: s, command: cmd })
@@ -348,8 +368,18 @@ pub async fn control_software(
             } else {
                 prov.start(&spec).await?;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            let s = cur_status().await?;
+            // 轮询等待就绪（最多 5s）
+            let mut ok = false;
+            for _ in 0..10 {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if let Ok(st) = cur_status().await {
+                    if st == RunStatus::Running {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            let s = if ok { RunStatus::Running } else { cur_status().await.unwrap_or(RunStatus::Stopped) };
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "restart", &format!("{}@{}", spec.provider, spec.version));
             Ok(ControlResult { status: s, command: cmd })
