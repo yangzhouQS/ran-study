@@ -33,6 +33,18 @@ import { useTaskStream } from '@/composables/use-task-stream';
 import { useAppStore } from '@/store/app-store';
 import type { InstalledSoftware, RunMode, SoftwareCatalog } from '@/types/api-type';
 
+/** 从 Tauri 错误对象提取可读消息（RanError 序列化为 { Variant: "msg" }） */
+const errMsg = (e: unknown): string => {
+  if (typeof e === 'string') return e;
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const vals = Object.values(e as Record<string, unknown>);
+    if (vals.length === 1 && typeof vals[0] === 'string') return vals[0];
+    return JSON.stringify(e);
+  }
+  return String(e);
+};
+
 interface Sel {
   version: string;
   mode: RunMode;
@@ -139,7 +151,7 @@ export default defineComponent({
         const result = await controlSoftware(id, a);
         logOp(a, row, `${result.command} → 状态: ${result.status}`, true);
       } catch (e) {
-        logOp(a, row, String(e), false);
+        logOp(a, row, errMsg(e), false);
       }
       await refresh();
       await refreshStatus();
@@ -150,7 +162,7 @@ export default defineComponent({
         await uninstallSoftware(id);
         logOp('uninstall', row, '已卸载', true);
       } catch (e) {
-        logOp('uninstall', row, String(e), false);
+        logOp('uninstall', row, errMsg(e), false);
       }
       await refresh();
       await refreshStatus();
