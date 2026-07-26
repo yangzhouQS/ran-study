@@ -16,6 +16,7 @@ import {
   addCustomApp,
   deleteCustomApp,
   listCustomApps,
+  restartCustomApp,
   startCustomApp,
   stopCustomApp,
 } from '@/api/apps-api';
@@ -63,6 +64,10 @@ export default defineComponent({
     };
     const onStop = async (id: number) => {
       await stopCustomApp(id);
+      await refresh();
+    };
+    const onRestart = async (id: number) => {
+      await restartCustomApp(id);
       await refresh();
     };
     const onDelete = async (id: number) => {
@@ -163,12 +168,15 @@ export default defineComponent({
             }}
           </ElTableColumn>
           <ElTableColumn prop="status" label="状态" width={100} />
-          <ElTableColumn label="操作" width={240}>
+          <ElTableColumn label="操作" width={320}>
             {{
               default: (scope: { row: CustomApp }) => (
                 <span>
                   <ElButton size="small" onClick={() => onStart(scope.row.id)}>
                     启动
+                  </ElButton>
+                  <ElButton size="small" onClick={() => onRestart(scope.row.id)}>
+                    重启
                   </ElButton>
                   <ElButton size="small" onClick={() => onStop(scope.row.id)}>
                     停止

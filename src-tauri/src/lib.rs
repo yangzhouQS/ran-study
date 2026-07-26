@@ -177,6 +177,7 @@ pub fn run() {
             commands::apps::add_custom_app,
             commands::apps::start_custom_app,
             commands::apps::stop_custom_app,
+            commands::apps::restart_custom_app,
             commands::apps::status_custom_app,
             commands::apps::delete_custom_app,
         ])

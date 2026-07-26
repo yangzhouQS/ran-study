@@ -4,6 +4,7 @@ use crate::error::{RanError, RanResult};
 use crate::provider::service;
 use crate::repo::CustomAppRow;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 fn find(state: &State<'_, Arc<AppState>>, id: i64) -> RanResult<CustomAppRow> {
@@ -79,6 +80,26 @@ pub fn stop_custom_app(
     let row = find(&state, id)?;
     apps::stop(&state.root, &row)?;
     let _ = state.repo.update_custom_app(id, 0, "stopped");
+    let _ = app.emit("apps://changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn restart_custom_app(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    id: i64,
+) -> RanResult<()> {
+    let mut row = find(&state, id)?;
+    // 先停止（忽略已停止的错误）
+    let _ = apps::stop(&state.root, &row);
+    let _ = state.repo.update_custom_app(id, 0, "stopped");
+    // 等待进程/服务真正退出，避免启动时端口/资源冲突
+    std::thread::sleep(Duration::from_millis(1200));
+    // 再启动
+    let pid = apps::start(&state.root, &row)?;
+    row.pid = pid;
+    let _ = state.repo.update_custom_app(id, pid, "running");
     let _ = app.emit("apps://changed", ());
     Ok(())
 }
