@@ -116,8 +116,8 @@ export default defineComponent({
     const act = async (id: number, a: 'start' | 'stop' | 'restart') => {
       const row = installed.value.find((s) => s.id === id);
       try {
-        const status = await controlSoftware(id, a);
-        logOp(a, row, `状态: ${status}`, true);
+        const result = await controlSoftware(id, a);
+        logOp(a, row, `${result.command} → 状态: ${result.status}`, true);
       } catch (e) {
         logOp(a, row, String(e), false);
       }

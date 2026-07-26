@@ -181,12 +181,70 @@ pub fn update_software(
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlResult {
+    pub status: RunStatus,
+    pub command: String,
+}
+
+fn cmd_str(action: &str, spec: &SoftwareSpec, linked_svc: &Option<String>) -> String {
+    if let Some(svc) = linked_svc {
+        return match action {
+            "start" => format!("sc start {svc}"),
+            "stop" => format!("sc stop {svc}"),
+            "restart" => format!("sc stop {svc} → 1.2s → sc start {svc}"),
+            _ => format!("sc query {svc}"),
+        };
+    }
+    let bin = spec.bin_path.display();
+    let cfg = spec.config_path.display();
+    let data = spec.data_path.display();
+    let port = spec.port;
+    let svc = spec.service_name.as_deref().unwrap_or("?");
+    match spec.provider.as_str() {
+        "mysql" => match (spec.run_mode, action) {
+            (RunMode::Portable, "start") => format!("mysqld --defaults-file={cfg}"),
+            (RunMode::Portable, "stop") => format!("mysqladmin -u root -P {port} shutdown"),
+            (RunMode::Portable, "restart") => {
+                format!("mysqladmin -u root -P {port} shutdown → 1.2s → mysqld --defaults-file={cfg}")
+            }
+            (RunMode::Service, "start") => format!("sc start {svc}"),
+            (RunMode::Service, "stop") => format!("sc stop {svc}"),
+            (RunMode::Service, "restart") => format!("sc stop {svc} → 1.2s → sc start {svc}"),
+            _ => format!("port check :{port}"),
+        },
+        "redis" => match (spec.run_mode, action) {
+            (RunMode::Portable, "start") => format!("redis-server {cfg}"),
+            (RunMode::Portable, "stop") => format!("redis-cli -p {port} shutdown"),
+            (RunMode::Portable, "restart") => {
+                format!("redis-cli -p {port} shutdown → 1.2s → redis-server {cfg}")
+            }
+            (RunMode::Service, "start") => format!("nssm start {svc}"),
+            (RunMode::Service, "stop") => format!("nssm stop {svc}"),
+            (RunMode::Service, "restart") => format!("nssm stop {svc} → 1.2s → nssm start {svc}"),
+            _ => format!("port check :{port}"),
+        },
+        "postgres" => match (spec.run_mode, action) {
+            (RunMode::Portable, "start") => format!("pg_ctl start -D {data} -w"),
+            (RunMode::Portable, "stop") => format!("pg_ctl stop -D {data} -m fast"),
+            (RunMode::Portable, "restart") => {
+                format!("pg_ctl stop -D {data} -m fast → 1.2s → pg_ctl start -D {data} -w")
+            }
+            (RunMode::Service, "start") => format!("sc start {svc}"),
+            (RunMode::Service, "stop") => format!("sc stop {svc}"),
+            _ => format!("port check :{port}"),
+        },
+        _ => format!("{bin} {action}"),
+    }
+}
+
 #[tauri::command]
 pub async fn control_software(
     state: State<'_, Arc<AppState>>,
     id: i64,
     action: String,
-) -> RanResult<RunStatus> {
+) -> RanResult<ControlResult> {
     let spec = state
         .repo
         .list_software()?
@@ -222,6 +280,7 @@ pub async fn control_software(
             prov.status(&spec).await
         }
     };
+    let cmd = cmd_str(&action, &spec, &linked_svc);
     match action.as_str() {
         "start" => {
             if let Some(svc) = &linked_svc {
@@ -232,7 +291,7 @@ pub async fn control_software(
             let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "start", &format!("{}@{}", spec.provider, spec.version));
-            Ok(s)
+            Ok(ControlResult { status: s, command: cmd })
         }
         "stop" => {
             if let Some(svc) = &linked_svc {
@@ -243,18 +302,15 @@ pub async fn control_software(
             let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "stop", &format!("{}@{}", spec.provider, spec.version));
-            Ok(s)
+            Ok(ControlResult { status: s, command: cmd })
         }
         "restart" => {
-            // 先停止
             if let Some(svc) = &linked_svc {
                 crate::provider::service::sc_stop(svc)?;
             } else {
                 prov.stop(&spec).await?;
             }
-            // 等待进程/服务真正退出，避免端口/资源冲突
             tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
-            // 再启动
             if let Some(svc) = &linked_svc {
                 crate::provider::service::sc_start(svc)?;
             } else {
@@ -263,12 +319,12 @@ pub async fn control_software(
             let s = cur_status().await?;
             upd(&state.repo, id, s);
             crate::logs::audit(&state.root, "restart", &format!("{}@{}", spec.provider, spec.version));
-            Ok(s)
+            Ok(ControlResult { status: s, command: cmd })
         }
         "status" => {
             let s = cur_status().await?;
             upd(&state.repo, id, s);
-            Ok(s)
+            Ok(ControlResult { status: s, command: cmd })
         }
         _ => Err(RanError::Other("未知 action".into())),
     }

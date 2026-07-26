@@ -39,6 +39,11 @@ export interface SoftwareCatalog {
 export type RunMode = 'Portable' | 'Service';
 export type RunStatus = 'Running' | 'Stopped' | 'Unknown';
 
+export interface ControlResult {
+  status: RunStatus;
+  command: string;
+}
+
 export interface InstalledSoftware {
   id: number;
   provider: string;

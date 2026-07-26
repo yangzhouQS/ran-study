@@ -1,8 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  ControlResult,
   InstalledSoftware,
   RunMode,
-  RunStatus,
   SoftwareCatalog,
 } from '@/types/api-type';
 
@@ -33,7 +33,7 @@ export const updateSoftware = (params: {
   runMode: RunMode;
 }) => invoke<void>('update_software', params);
 export const controlSoftware = (id: number, action: 'start' | 'stop' | 'restart' | 'status') =>
-  invoke<RunStatus>('control_software', { id, action });
+  invoke<ControlResult>('control_software', { id, action });
 export const uninstallSoftware = (id: number) => invoke<void>('uninstall_software', { id });
 export const readSoftwareConfig = (id: number) =>
   invoke<string>('read_software_config', { id });
