@@ -546,10 +546,11 @@ export default defineComponent({
                 onInput={(v: string) => {
                   linkForm.binPath = v;
                 }}
-                placeholder="留空按默认推导（mysql: bin/mysqld.exe；redis: redis-server.exe；pg: bin/pg_ctl.exe）"
+                placeholder="留空按默认推导"
               >
                 {{ suffix: suffixSlot(pickBin, false) }}
               </ElInput>
+              <ElAlert title={'提示：mysql: bin/mysqld.exe；redis: redis-server.exe；pg: bin/pg_ctl.exe'} />
             </ElFormItem>
             <ElFormItem label="配置文件">
               <ElInput
